@@ -1,0 +1,255 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id       Int       @id @default(autoincrement())
+  username String    @unique
+  phone    String?   @unique
+  nickname String?
+  avatar   String?
+  password String
+  role     String    @default("user") // "admin", "user"
+  membershipType String @default("regular") // "regular", "plus", "pro"
+  createdAt DateTime @default(now())
+  posts    Post[]
+  comments Comment[]
+  bookmarkCollections BookmarkCollection[]
+  bookmarks Bookmark[]
+  commentLikes CommentLike[]
+}
+
+model Post {
+  id        Int       @id @default(autoincrement())
+  title     String
+  summary   String?
+  content   String
+  published Boolean   @default(false)
+  accessLevel String @default("regular") // "regular", "plus", "pro"
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  author    User      @relation(fields: [authorId], references: [id])
+  authorId  Int
+  tags      Tag[]
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  categoryId Int?
+  comments  Comment[]
+  columnNodes ColumnNode[]
+  bookmarks Bookmark[]
+}
+
+model BookmarkCollection {
+  id          Int        @id @default(autoincrement())
+  name        String
+  description String?
+  userId      Int
+  user        User       @relation(fields: [userId], references: [id])
+  isDefault   Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  bookmarks   Bookmark[]
+
+  @@unique([userId, name])
+}
+
+model Bookmark {
+  id           Int                @id @default(autoincrement())
+  userId       Int
+  user         User               @relation(fields: [userId], references: [id])
+  postId       Int
+  post         Post               @relation(fields: [postId], references: [id])
+  collectionId Int
+  collection   BookmarkCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime           @default(now())
+
+  @@unique([userId, postId, collectionId])
+}
+
+model Tag {
+  id    Int    @id @default(autoincrement())
+  name  String @unique
+  posts Post[]
+}
+
+model Category {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  parentId    Int?
+  parent      Category? @relation("CategoryToCategory", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Category[] @relation("CategoryToCategory")
+  level       Int       @default(1)
+  posts       Post[]
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  content   String
+  createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id])
+  postId    Int
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  likes     CommentLike[]
+}
+
+model CommentLike {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  commentId Int
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, commentId])
+}
+
+// 网站全局设置
+model SiteSettings {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+}
+
+// 个人信息
+model Profile {
+  id          Int      @id @default(autoincrement())
+  name        String
+  title       String
+  location    String
+  bio         String
+  avatar      String?
+  email       String?
+  github      String?
+  twitter     String?
+  linkedin    String?
+  skills      String   // JSON: [{name, level}]
+  interests   String   // JSON: ["item1", "item2"]
+  experience  String   // JSON: [{title, company, period, description}]
+  education   String   // JSON: [{degree, school, period}]
+  updatedAt   DateTime @updatedAt
+}
+
+// 资源管理
+model Resource {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String
+  url         String
+  type        String
+  category    String
+  icon        String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// 项目展示
+model Project {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String
+  tech        String   // JSON array
+  github      String?
+  demo        String?
+  stars       Int      @default(0)
+  forks       Int      @default(0)
+  status      String
+  featured    Boolean  @default(false)
+  color       String
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// 专栏管理
+model Column {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String
+  postCount   Int      @default(0)
+  readTime    String
+  color       String
+  icon        String   @default("BookOpen")
+  status      String
+  featured    Boolean  @default(false)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  nodes       ColumnNode[]
+}
+
+model ColumnNode {
+  id        Int      @id @default(autoincrement())
+  title     String
+  type      String   // "category" or "post"
+  parentId  Int?
+  parent    ColumnNode? @relation("NodeToNode", fields: [parentId], references: [id], onDelete: Cascade)
+  children  ColumnNode[] @relation("NodeToNode")
+  
+  columnId  Int
+  column    Column   @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  
+  postId    Int?
+  post      Post?    @relation(fields: [postId], references: [id])
+  
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model OperationLog {
+  id        Int      @id @default(autoincrement())
+  model     String
+  action    String
+  targetId  Int?
+  userId    Int?
+  before    String?
+  after     String?
+  ip        String?
+  createdAt DateTime @default(now())
+}
+
+model VisitLog {
+  id        Int      @id @default(autoincrement())
+  ip        String?
+  path      String
+  userAgent String?
+  createdAt DateTime @default(now())
+}
+
+model WeightRecord {
+  id        Int      @id @default(autoincrement())
+  date      DateTime @unique
+  weight    Float
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DietRecord {
+  id        Int      @id @default(autoincrement())
+  date      DateTime
+  timeSlot  String
+  food      String
+  quantity  Float
+  unit      String
+  calories  Float
+  protein   Float
+  fat       Float
+  carbs     Float
+  note      String?
+  photo     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
