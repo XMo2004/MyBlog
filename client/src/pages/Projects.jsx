@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Rocket, Github, ExternalLink, Star, GitFork, Code, Layers } from 'lucide-react';
 import { projectsApi } from '../lib/api';
+import Loading from '../components/Loading';
 
 export const Projects = () => {
     const [projects, setProjects] = useState([]);
@@ -26,7 +27,7 @@ export const Projects = () => {
         fetchProjects();
     }, []);
 
-    if (loading) return <div className="text-center py-20">加载中...</div>;
+    if (loading) return <Loading />;
 
     return (
         <div className="space-y-12">
@@ -181,3 +182,5 @@ export const Projects = () => {
     );
 };
 
+
+export default Projects;

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Save, Globe, Type, Signature } from 'lucide-react';
 import { settingsApi } from '../../lib/api';
 import Toast from '../../components/Toast';
+import Loading from '../../components/Loading';
 
 const AdminSettings = () => {
     const [settings, setSettings] = useState({
@@ -52,7 +53,7 @@ const AdminSettings = () => {
         }
     };
 
-    if (isLoading) return <div>加载中...</div>;
+    if (isLoading) return <Loading />;
 
     return (
         <div className="space-y-6">

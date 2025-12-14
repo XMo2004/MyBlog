@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useEditor, EditorContent, NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, BubbleMenu, FloatingMenu } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import Text from '@tiptap/extension-text';
 import { TextStyle } from '@tiptap/extension-text-style';
 import Color from '@tiptap/extension-color';
 import Highlight from '@tiptap/extension-highlight';
@@ -10,6 +11,7 @@ import Underline from '@tiptap/extension-underline';
 import { Markdown } from 'tiptap-markdown';
 import { Extension, Mark, Node, mergeAttributes } from '@tiptap/core';
 import HardBreak from '@tiptap/extension-hard-break';
+import Paragraph from '@tiptap/extension-paragraph';
 import { 
     Bold, Italic, Underline as UnderlineIcon, 
     Strikethrough, Code, Heading1, Heading2, Heading3,
@@ -17,8 +19,9 @@ import {
     Type, Palette, Highlighter, RemoveFormatting,
     AlignLeft, AlignCenter, AlignRight, Ghost, X,
     Info, AlertTriangle, XCircle, CheckCircle2, Lightbulb,
-    Image as ImageIcon
+    Image as ImageIcon, MessageSquare
 } from 'lucide-react';
+import AnnotationDialog from './AnnotationDialog';
 
 const MACARON_COLORS = [
     { name: '蜜桃粉', value: 'var(--rt-highlight-peach)' },
@@ -258,6 +261,82 @@ const Callout = Node.create({
     },
 });
 
+// Annotation Mark Extension
+const Annotation = Mark.create({
+  name: 'annotation',
+
+  addOptions() {
+    return {
+      HTMLAttributes: {
+        class: 'annotation',
+      },
+    }
+  },
+
+  addAttributes() {
+    return {
+      explanation: {
+        default: '',
+        parseHTML: element => element.getAttribute('data-explanation'),
+        renderHTML: attributes => {
+          if (!attributes.explanation) {
+            return {}
+          }
+          return {
+            'data-explanation': attributes.explanation,
+          }
+        },
+      },
+    }
+  },
+
+  parseHTML() {
+    return [
+      {
+        tag: 'span[data-explanation]',
+        getAttrs: element => ({
+          explanation: element.getAttribute('data-explanation'),
+        }),
+      },
+    ]
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ['span', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0]
+  },
+
+  addCommands() {
+    return {
+      setAnnotation: (explanation) => ({ commands }) => {
+        return commands.setMark(this.name, { explanation })
+      },
+      toggleAnnotation: (explanation) => ({ commands }) => {
+        return commands.toggleMark(this.name, { explanation })
+      },
+      unsetAnnotation: () => ({ commands }) => {
+        return commands.unsetMark(this.name)
+      },
+    }
+  },
+
+  addStorage() {
+    return {
+      markdown: {
+        serialize: {
+          open(state, mark) {
+            const explanation = mark.attrs.explanation || ''
+            return `<span class="annotation" data-explanation="${explanation.replace(/"/g, '&quot;')}">`
+          },
+          close() {
+            return '</span>'
+          },
+          mixable: true,
+        },
+      }
+    }
+  },
+});
+
 // Custom Spoiler Extension
 const Spoiler = Mark.create({
   name: 'spoiler',
@@ -380,6 +459,23 @@ const FontSize = Extension.create({
   },
 });
 
+// Custom Text extension to preserve non-breaking spaces in Markdown
+const CustomText = Text.extend({
+    addStorage() {
+        return {
+            markdown: {
+                serialize(state, node) {
+                    const parts = node.text.split('\u00A0');
+                    parts.forEach((part, index) => {
+                        if (part) state.text(part);
+                        if (index < parts.length - 1) state.write('&nbsp;');
+                    });
+                },
+            },
+        };
+    },
+});
+
 // Custom HardBreak extension to use two spaces instead of backslash
 const CustomHardBreak = HardBreak.extend({
     addStorage() {
@@ -394,6 +490,24 @@ const CustomHardBreak = HardBreak.extend({
             }
         }
     }
+});
+
+const MarkdownParagraph = Paragraph.extend({
+    addStorage() {
+        return {
+            markdown: {
+                serialize(state, node) {
+                    if (!node.content || node.content.size === 0) {
+                        state.write('&nbsp;');
+                        state.closeBlock(node);
+                        return;
+                    }
+                    state.renderInline(node);
+                    state.closeBlock(node);
+                },
+            },
+        };
+    },
 });
 
 const ImageComponent = ({ node, updateAttributes, selected }) => {
@@ -585,6 +699,17 @@ const MenuBar = ({ editor }) => {
                     title="行内代码"
                 >
                     <Code size={16} />
+                </ToolbarButton>
+                <ToolbarButton
+                    onClick={() => {
+                        const currentAttrs = editor.getAttributes('annotation');
+                        setCurrentAnnotation(currentAttrs?.explanation || '');
+                        setIsAnnotationDialogOpen(true);
+                    }}
+                    isActive={editor.isActive('annotation')}
+                    title="添加或修改批注"
+                >
+                    <MessageSquare size={16} />
                 </ToolbarButton>
             </ToolbarGroup>
 
@@ -880,13 +1005,21 @@ const ImageBubbleMenuContent = ({ editor }) => {
 };
 
 const RichTextEditor = ({ content, onChange, className = '', editorClassName = '', variant = 'default' }) => {
+    const [isAnnotationDialogOpen, setIsAnnotationDialogOpen] = useState(false);
+    const [currentAnnotation, setCurrentAnnotation] = useState('');
+    
     const editor = useEditor({
         extensions: [
             StarterKit.configure({
                 hardBreak: false,
+                paragraph: false,
+                text: false,
             }),
+            CustomText,
             CustomHardBreak,
+            MarkdownParagraph,
             Spoiler,
+            Annotation,
             Callout,
             ImageNode,
             TextStyle,
@@ -908,6 +1041,54 @@ const RichTextEditor = ({ content, onChange, className = '', editorClassName = '
         editorProps: {
             attributes: {
                 class: `prose dark:prose-invert max-w-none focus:outline-none px-8 py-6 ${variant === 'seamless' ? 'min-h-[calc(100vh-200px)]' : 'min-h-[400px]'} ${editorClassName}`,
+            },
+            handleKeyDown(view, event) {
+                if (!editor) return false;
+                if (event.key === 'Tab') {
+                    if (editor.isActive('bulletList') || editor.isActive('orderedList')) {
+                        event.preventDefault();
+                        if (event.shiftKey) {
+                            editor.chain().focus().liftListItem('listItem').run();
+                        } else {
+                            editor.chain().focus().sinkListItem('listItem').run();
+                        }
+                        return true;
+                    }
+                    if (editor.isActive('codeBlock')) {
+                        event.preventDefault();
+                        editor.chain().focus().insertContent('    ').run();
+                        return true;
+                    }
+                    if (editor.isActive('paragraph')) {
+                        event.preventDefault();
+                        const { state } = view;
+                        const { $from } = state.selection;
+                        const start = $from.start();
+                        const paragraph = $from.parent;
+                        const text = paragraph.textContent || '';
+                        const indentUnit = '\u00A0\u00A0\u00A0\u00A0';
+                        if (event.shiftKey) {
+                            if (text.startsWith(indentUnit)) {
+                                view.dispatch(state.tr.delete(start, start + indentUnit.length));
+                                return true;
+                            }
+                            if (text.startsWith('\u00A0')) {
+                                let count = 0;
+                                while (text[count] === '\u00A0') {
+                                    count += 1;
+                                }
+                                if (count > 0) {
+                                    view.dispatch(state.tr.delete(start, start + count));
+                                }
+                                return true;
+                            }
+                            return true;
+                        }
+                        view.dispatch(state.tr.insertText(indentUnit, start));
+                        return true;
+                    }
+                }
+                return false;
             },
             handlePaste(view, event) {
                 const clipboardData = event.clipboardData || window.clipboardData;
@@ -1057,6 +1238,17 @@ const RichTextEditor = ({ content, onChange, className = '', editorClassName = '
                             >
                                 <Highlighter size={14} />
                             </ToolbarButton>
+                            <ToolbarButton
+                                onClick={() => {
+                                    const currentAttrs = editor.getAttributes('annotation');
+                                    setCurrentAnnotation(currentAttrs?.explanation || '');
+                                    setIsAnnotationDialogOpen(true);
+                                }}
+                                isActive={editor.isActive('annotation')}
+                                title="添加或修改批注"
+                            >
+                                <MessageSquare size={14} />
+                            </ToolbarButton>
                         </div>
                     </BubbleMenu>
 
@@ -1106,6 +1298,25 @@ const RichTextEditor = ({ content, onChange, className = '', editorClassName = '
             <div className="bg-background">
                 <EditorContent editor={editor} />
             </div>
+            
+            <AnnotationDialog
+                isOpen={isAnnotationDialogOpen}
+                initialValue={currentAnnotation}
+                onClose={() => {
+                    setIsAnnotationDialogOpen(false);
+                    setCurrentAnnotation('');
+                }}
+                onConfirm={(explanation) => {
+                    if (editor) {
+                        if (explanation.trim()) {
+                            editor.chain().focus().setAnnotation(explanation).run();
+                        } else {
+                            // 如果内容为空，则移除批注
+                            editor.chain().focus().unsetAnnotation().run();
+                        }
+                    }
+                }}
+            />
         </div>
     );
 };

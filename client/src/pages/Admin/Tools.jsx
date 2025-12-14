@@ -17,7 +17,9 @@ const AdminTools = () => {
     try {
       const res = await adminApi.listBackups()
       setBackups(res.data)
-    } catch (e) {}
+    } catch (error) {
+      console.error('Failed to fetch backups', error)
+    }
   }
 
   const doBackup = async () => {

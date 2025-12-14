@@ -1,5 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = global.prisma || (global.prisma = new PrismaClient());
 const { logOperation } = require('../middleware/log.middleware');
 
 // Get profile (assuming single user profile for now, id=1)

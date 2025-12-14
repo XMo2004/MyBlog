@@ -2,9 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { weightApi } from '../lib/api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Scale } from 'lucide-react';
-import { format, subDays, subMonths, isAfter, startOfDay } from 'date-fns';
+import { format, subDays, isAfter, startOfDay } from 'date-fns';
 import { motion } from 'framer-motion';
-import { useTheme } from '../components/ThemeToggle';
+import useTheme from '../components/useTheme';
+import Loading from '../components/Loading';
 
 const Weight = () => {
     const [data, setData] = useState([]);
@@ -59,13 +60,9 @@ const Weight = () => {
     };
 
     if (loading) {
-        return (
-            <div className="container mx-auto px-4 py-16 text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-                <p className="text-muted-foreground">加载中...</p>
-            </div>
-        );
+        return <Loading />;
     }
+
 
     const ranges = [
         { key: 'week', label: '近一周' },

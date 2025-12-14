@@ -32,7 +32,6 @@ export const authApi = {
     register: (data) => api.post('/auth/register', data),
     sendCode: (phone) => api.post('/auth/send-code', { phone }),
     checkAvailability: (type, value) => api.post('/auth/check', { type, value }),
-    getCaptcha: () => api.get('/auth/captcha'),
 };
 
 export const settingsApi = {

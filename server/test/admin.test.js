@@ -13,7 +13,7 @@ test('login as admin', async () => {
   const res = await fetch(`${base}/auth/login`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ username: 'admin', password: 'admin123' })
+    body: JSON.stringify({ username: 'xmo2004', password: 'admin123' })
   })
   assert.equal(res.status, 200)
   const data = await res.json()

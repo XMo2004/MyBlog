@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Trash2, Edit2, Link as LinkIcon, Folder, ExternalLink, Search, X } from 'lucide-react';
 import { resourcesApi } from '../../lib/api';
 import Toast from '../../components/Toast';
+import Loading from '../../components/Loading';
 
 const AdminResources = () => {
     const [resources, setResources] = useState([]);
@@ -104,6 +105,8 @@ const AdminResources = () => {
             setMessage({ type: 'error', text: '批量删除失败' });
         }
     };
+
+    if (isLoading) return <Loading />;
 
     return (
         <div className="space-y-6">

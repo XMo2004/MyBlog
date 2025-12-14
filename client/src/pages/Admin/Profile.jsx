@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Save, User, Briefcase, GraduationCap, Code, Heart, Plus, Trash2 } from 'lucide-react';
 import { profileApi } from '../../lib/api';
 import Toast from '../../components/Toast';
+import Loading from '../../components/Loading';
 
 const AdminProfile = () => {
     const [profile, setProfile] = useState({
@@ -96,7 +97,7 @@ const AdminProfile = () => {
         }
     };
 
-    if (isLoading) return <div>加载中...</div>;
+    if (isLoading) return <Loading />;
 
     return (
         <div className="space-y-6">

@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Terminal, BookOpen, User, Github, ChevronDown, Library, Columns, Package, UserCircle, Menu, X } from 'lucide-react';
-import { ThemeToggle, useTheme } from '../components/ThemeToggle';
+import { ThemeToggle } from '../components/ThemeToggle';
+import useTheme from '../components/useTheme';
 import { Search } from '../components/Search';
 
 // Navigation menu configuration

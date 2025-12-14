@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Terminal, RefreshCw } from 'lucide-react';
+import { Terminal } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { authApi } from '../lib/api';
 
@@ -9,28 +9,13 @@ export const Register = () => {
         username: '', 
         password: '', 
         phone: '', 
-        verificationCode: '',
-        captchaText: ''
+        verificationCode: ''
     });
-    const [captcha, setCaptcha] = useState({ id: '', svg: '' });
     const [fieldErrors, setFieldErrors] = useState({});
     const [error, setError] = useState('');
     const [message, setMessage] = useState('');
     const [countdown, setCountdown] = useState(0);
     const navigate = useNavigate();
-
-    const fetchCaptcha = useCallback(async () => {
-        try {
-            const res = await authApi.getCaptcha();
-            setCaptcha({ id: res.data.captchaId, svg: res.data.svg });
-        } catch (err) {
-            console.error('Failed to fetch captcha', err);
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchCaptcha();
-    }, [fetchCaptcha]);
 
     useEffect(() => {
         let timer;
@@ -92,13 +77,6 @@ export const Register = () => {
                     errorMsg = '请输入验证码';
                 }
                 break;
-            case 'captchaText':
-                if (!value) {
-                    errorMsg = '请输入图形验证码';
-                } else if (value.length !== 4) {
-                    errorMsg = '图形验证码长度错误';
-                }
-                break;
         }
 
         if (errorMsg) {
@@ -132,7 +110,7 @@ export const Register = () => {
         // Validate all fields
         const errors = {};
         let hasError = false;
-        const fields = ['username', 'password', 'phone', 'verificationCode', 'captchaText'];
+        const fields = ['username', 'password', 'phone', 'verificationCode'];
         
         for (const field of fields) {
             const errorMsg = await validateField(field, formData[field]);
@@ -148,8 +126,7 @@ export const Register = () => {
         setMessage('');
         try {
             const res = await authApi.register({
-                ...formData,
-                captchaId: captcha.id
+                ...formData
             });
             setMessage('注册成功，正在跳转登录页...');
             setTimeout(() => {
@@ -157,9 +134,6 @@ export const Register = () => {
             }, 1500);
         } catch (err) {
             setError(err.response?.data?.message || '注册失败');
-            // Refresh captcha on failure
-            fetchCaptcha();
-            setFormData(prev => ({ ...prev, captchaText: '' }));
         }
     };
 
@@ -284,35 +258,6 @@ export const Register = () => {
                         {fieldErrors.verificationCode && <p className="text-destructive text-xs mt-1">{fieldErrors.verificationCode}</p>}
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium mb-1.5 text-foreground">图形验证码</label>
-                        <div className="flex gap-2">
-                            <input
-                                type="text"
-                                name="captchaText"
-                                className={`flex-1 bg-background border rounded-md p-2.5 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none text-foreground placeholder:text-muted-foreground transition-colors ${fieldErrors.captchaText ? 'border-destructive' : 'border-border'}`}
-                                value={formData.captchaText}
-                                onChange={(e) => setFormData({ ...formData, captchaText: e.target.value })}
-                                onBlur={handleBlur}
-                                placeholder="请输入右侧字符"
-                            />
-                            <div 
-                                className="h-[42px] bg-white rounded-md border border-border cursor-pointer overflow-hidden relative group"
-                                onClick={fetchCaptcha}
-                                title="点击刷新"
-                            >
-                                <div 
-                                    className="h-full w-[100px]"
-                                    dangerouslySetInnerHTML={{ __html: captcha.svg }} 
-                                />
-                                <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                    <RefreshCw size={16} className="text-black/50" />
-                                </div>
-                            </div>
-                        </div>
-                        {fieldErrors.captchaText && <p className="text-destructive text-xs mt-1">{fieldErrors.captchaText}</p>}
-                    </div>
-
                     <motion.button
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
@@ -332,3 +277,5 @@ export const Register = () => {
         </div>
     );
 };
+
+export default Register;

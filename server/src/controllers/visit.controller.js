@@ -1,5 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = global.prisma || (global.prisma = new PrismaClient());
 
 exports.recordVisit = async (req, res) => {
     try {

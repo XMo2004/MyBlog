@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
     Plus, Trash2, Edit, Tag, X, FileText, Inbox, Search, MoreHorizontal, Check, 
     ArrowLeft, ArrowUpDown, Filter, Eye, Code as CodeIcon, Folder, 
@@ -41,6 +41,120 @@ export const Posts = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [lastSaved, setLastSaved] = useState(null);
+
+    // Auto-save & Draft states
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [autoSaveStatus, setAutoSaveStatus] = useState(''); // 'saving', 'saved', 'error'
+    const currentPostRef = useRef(currentPost);
+    const hasUnsavedChangesRef = useRef(hasUnsavedChanges);
+    const autoSaveIntervalRef = useRef(null);
+
+    // Update refs whenever state changes
+    useEffect(() => {
+        currentPostRef.current = currentPost;
+    }, [currentPost]);
+
+    useEffect(() => {
+        hasUnsavedChangesRef.current = hasUnsavedChanges;
+    }, [hasUnsavedChanges]);
+
+    // Auto-save timer
+    useEffect(() => {
+        if (isEditing) {
+            autoSaveIntervalRef.current = setInterval(async () => {
+                if (hasUnsavedChangesRef.current && currentPostRef.current.title) {
+                    await performAutoSave();
+                }
+            }, 30000); // 30s
+        }
+        return () => {
+            if (autoSaveIntervalRef.current) clearInterval(autoSaveIntervalRef.current);
+        };
+    }, [isEditing]);
+
+    const performAutoSave = async () => {
+        setAutoSaveStatus('saving');
+        try {
+            const post = currentPostRef.current;
+            const postData = {
+                title: post.title,
+                summary: post.summary,
+                content: post.content,
+                published: post.published, // Keep current status
+                tags: post.tags || [],
+                categoryId: post.categoryId || null,
+                accessLevel: post.accessLevel || 'regular'
+            };
+
+            if (post.id) {
+                await api.put(`/posts/${post.id}`, postData);
+            } else {
+                // For new posts, create as draft first
+                const res = await api.post('/posts', { ...postData, published: false });
+                setCurrentPost(prev => ({ ...prev, id: res.data.id }));
+            }
+            
+            setLastSaved(new Date());
+            setAutoSaveStatus('saved');
+            setHasUnsavedChanges(false);
+            
+            // Revert status after 2s
+            setTimeout(() => setAutoSaveStatus(''), 2000);
+        } catch (err) {
+            console.error('Auto-save failed', err);
+            setAutoSaveStatus('error');
+        }
+    };
+
+    // Local Draft Saving
+    useEffect(() => {
+        if (isEditing && hasUnsavedChanges) {
+            const draftKey = currentPost.id ? `draft_post_${currentPost.id}` : 'draft_post_new';
+            const timeoutId = setTimeout(() => {
+                localStorage.setItem(draftKey, JSON.stringify(currentPost));
+            }, 1000); // Debounce 1s
+            return () => clearTimeout(timeoutId);
+        }
+    }, [currentPost, isEditing, hasUnsavedChanges]);
+
+    // Restore Draft Logic (Simplified)
+    useEffect(() => {
+        if (isEditing && !currentPost.id) {
+            const savedDraft = localStorage.getItem('draft_post_new');
+            if (savedDraft) {
+                try {
+                    const draft = JSON.parse(savedDraft);
+                    if (draft.title || draft.content) {
+                         // Only restore if current is empty (which it is on 'New')
+                         if (!currentPost.title && !currentPost.content) {
+                             setCurrentPost(prev => ({...prev, ...draft}));
+                             setHasUnsavedChanges(true);
+                             setMessage({ type: 'info', text: '已恢复未保存的草稿' });
+                         }
+                    }
+                } catch (e) { console.error(e); }
+            }
+        }
+    }, [isEditing]);
+
+    // Warn on exit
+    useEffect(() => {
+        const handleBeforeUnload = (e) => {
+            if (isEditing && hasUnsavedChanges) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [isEditing, hasUnsavedChanges]);
+
+    const clearDraft = (id) => {
+        const draftKey = id ? `draft_post_${id}` : 'draft_post_new';
+        localStorage.removeItem(draftKey);
+        if (id) localStorage.removeItem('draft_post_new'); 
+    };
+
 
     useEffect(() => {
         fetchPosts();
@@ -207,6 +321,15 @@ export const Posts = () => {
         }
     };
 
+    const updatePostState = (update) => {
+        setCurrentPost(prev => {
+            const newState = typeof update === 'function' ? update(prev) : update;
+            return newState;
+        });
+        setHasUnsavedChanges(true);
+        setAutoSaveStatus('');
+    };
+
     const handleSubmit = async (e) => {
         if (e) e.preventDefault();
         setMessage({ type: '', text: '' });
@@ -229,15 +352,20 @@ export const Posts = () => {
                 accessLevel: currentPost.accessLevel || 'regular'
             };
 
+            let savedId = currentPost.id;
+
             if (currentPost.id) {
                 await api.put(`/posts/${currentPost.id}`, postData);
                 setMessage({ type: 'success', text: '文章更新成功' });
             } else {
                 const res = await api.post('/posts', postData);
-                setCurrentPost(prev => ({ ...prev, id: res.data.id })); // Update ID so subsequent saves are updates
+                savedId = res.data.id;
+                setCurrentPost(prev => ({ ...prev, id: savedId })); 
                 setMessage({ type: 'success', text: '文章创建成功' });
             }
             setLastSaved(new Date());
+            setHasUnsavedChanges(false);
+            clearDraft(savedId);
             fetchPosts();
             fetchTags();
             fetchCategories();
@@ -253,7 +381,7 @@ export const Posts = () => {
             e.preventDefault();
             const newTag = tagInput.trim().replace(',', '');
             if (newTag && !currentPost.tags.includes(newTag)) {
-                setCurrentPost({
+                updatePostState({
                     ...currentPost,
                     tags: [...(currentPost.tags || []), newTag]
                 });
@@ -265,7 +393,7 @@ export const Posts = () => {
     // Category selection handled via dropdown; no free-text addition here
 
     const handleRemoveTag = (tagToRemove) => {
-        setCurrentPost({
+        updatePostState({
             ...currentPost,
             tags: currentPost.tags.filter(tag => tag !== tagToRemove)
         });
@@ -277,6 +405,7 @@ export const Posts = () => {
         const tagNames = post.tags ? post.tags.map(t => t.name) : [];
         setCurrentPost({ id: post.id, title: post.title, summary: post.summary, content: post.content, published: post.published, tags: tagNames, categoryId: post.category ? post.category.id : null, accessLevel: post.accessLevel || 'regular' });
         setIsEditing(true);
+        setHasUnsavedChanges(false);
     };
 
     const fetchTagPosts = async (tagId, search = '', sort = 'newest') => {
@@ -385,7 +514,11 @@ export const Posts = () => {
                             </button>
                         )}
                         <button
-                            onClick={() => { setCurrentPost({ title: '', summary: '', content: '', published: true, tags: [], categoryId: null, accessLevel: 'regular' }); setIsEditing(true); }}
+                            onClick={() => { 
+                                setCurrentPost({ title: '', summary: '', content: '', published: true, tags: [], categoryId: null, accessLevel: 'regular' }); 
+                                setIsEditing(true); 
+                                setHasUnsavedChanges(false);
+                            }}
                             className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm whitespace-nowrap"
                         >
                             <Plus size={16} /> 新建
@@ -406,7 +539,12 @@ export const Posts = () => {
                         <div className="h-14 border-b border-border flex items-center justify-between px-4 bg-background/95 backdrop-blur">
                             <div className="flex items-center gap-3">
                                 <button 
-                                    onClick={() => setIsEditing(false)} 
+                                    onClick={() => {
+                                        if (hasUnsavedChanges) {
+                                            if (!window.confirm('您有未保存的更改，确定要离开吗？')) return;
+                                        }
+                                        setIsEditing(false);
+                                    }} 
                                     className="p-2 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
                                     title="返回列表"
                                 >
@@ -414,7 +552,12 @@ export const Posts = () => {
                                 </button>
                                 <div className="text-sm text-muted-foreground flex items-center gap-2">
                                     <span className="font-medium text-foreground">{currentPost.id ? '编辑文章' : '新建文章'}</span>
-                                    {lastSaved && <span className="text-xs opacity-60 ml-2">已保存 {lastSaved.toLocaleTimeString()}</span>}
+                                    <span className="text-xs opacity-60 ml-2">
+                                        {autoSaveStatus === 'saving' ? '保存中...' : 
+                                         autoSaveStatus === 'saved' ? '已自动保存' :
+                                         hasUnsavedChanges ? '未保存' : 
+                                         lastSaved ? `已保存 ${lastSaved.toLocaleTimeString()}` : ''}
+                                    </span>
                                 </div>
                             </div>
                             
@@ -458,7 +601,7 @@ export const Posts = () => {
                                         placeholder="无标题"
                                         className="w-full bg-transparent text-4xl sm:text-5xl font-bold placeholder:text-muted-foreground/30 border-none outline-none focus:ring-0 px-0 mb-8"
                                         value={currentPost.title}
-                                        onChange={(e) => setCurrentPost({ ...currentPost, title: e.target.value })}
+                                        onChange={(e) => updatePostState({ ...currentPost, title: e.target.value })}
                                     />
                                     
                                     <div className="flex-1">
@@ -467,13 +610,13 @@ export const Posts = () => {
                                                 placeholder="在此输入 Markdown 内容..."
                                                 className="w-full h-full min-h-[500px] bg-transparent text-base font-mono placeholder:text-muted-foreground/30 border-none outline-none focus:ring-0 resize-none leading-relaxed"
                                                 value={currentPost.content}
-                                                onChange={(e) => setCurrentPost({ ...currentPost, content: e.target.value })}
+                                                onChange={(e) => updatePostState({ ...currentPost, content: e.target.value })}
                                             />
                                         ) : (
                                             <RichTextEditor
                                                 key={currentPost.id || 'new'}
                                                 content={currentPost.content}
-                                                onChange={(newContent) => setCurrentPost({ ...currentPost, content: newContent })}
+                                                onChange={(newContent) => updatePostState({ ...currentPost, content: newContent })}
                                                 variant="seamless"
                                                 editorClassName="px-0 min-h-[calc(100vh-300px)]"
                                                 className="-mx-1" // Negative margin to compensate for any slight misalignment or focus rings if needed, or just to pull it slightly if padding issues arise. But wait, if I use px-0, I don't need negative margin.
@@ -505,7 +648,7 @@ export const Posts = () => {
                                                             type="checkbox" 
                                                             className="sr-only peer"
                                                             checked={currentPost.published}
-                                                            onChange={() => setCurrentPost({ ...currentPost, published: !currentPost.published })}
+                                                            onChange={() => updatePostState({ ...currentPost, published: !currentPost.published })}
                                                         />
                                                         <div className="w-9 h-5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
                                                     </label>
@@ -519,7 +662,7 @@ export const Posts = () => {
                                                     <Folder className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
                                                     <select
                                                         value={currentPost.categoryId || ''}
-                                                        onChange={(e) => setCurrentPost({ ...currentPost, categoryId: e.target.value ? parseInt(e.target.value) : null })}
+                                                        onChange={(e) => updatePostState({ ...currentPost, categoryId: e.target.value ? parseInt(e.target.value) : null })}
                                                         className="w-full bg-background border border-border text-sm rounded-lg pl-9 pr-3 py-2 outline-none focus:ring-1 focus:ring-primary appearance-none"
                                                     >
                                                         <option value="">未选择分类</option>
@@ -539,7 +682,7 @@ export const Posts = () => {
                                                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
                                                     <select
                                                         value={currentPost.accessLevel || 'regular'}
-                                                        onChange={(e) => setCurrentPost({ ...currentPost, accessLevel: e.target.value })}
+                                                        onChange={(e) => updatePostState({ ...currentPost, accessLevel: e.target.value })}
                                                         className="w-full bg-background border border-border text-sm rounded-lg pl-9 pr-3 py-2 outline-none focus:ring-1 focus:ring-primary appearance-none"
                                                     >
                                                         <option value="regular">公开 (普通用户)</option>
@@ -589,7 +732,7 @@ export const Posts = () => {
                                                     placeholder="文章摘要 (可选)"
                                                     className="w-full bg-background border border-border text-sm rounded-lg p-3 outline-none focus:ring-1 focus:ring-primary resize-none min-h-[100px]"
                                                     value={currentPost.summary || ''}
-                                                    onChange={(e) => setCurrentPost({ ...currentPost, summary: e.target.value })}
+                                                    onChange={(e) => updatePostState({ ...currentPost, summary: e.target.value })}
                                                 />
                                             </div>
                                             
@@ -598,7 +741,7 @@ export const Posts = () => {
                                                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">快捷操作</h3>
                                                 <button
                                                     type="button"
-                                                    onClick={() => setCurrentPost(prev => ({ ...prev, content: prev.content + '\n\n' + `# Markdown 渲染全功能展示
+                                                    onClick={() => updatePostState(prev => ({ ...prev, content: prev.content + '\n\n' + `# Markdown 渲染全功能展示
 ` }))} 
                                                     className="text-xs text-primary hover:underline flex items-center gap-1"
                                                 >
@@ -947,3 +1090,5 @@ export const Posts = () => {
         </div>
     );
 };
+
+export default Posts;

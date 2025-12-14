@@ -4,6 +4,7 @@ import { Folder, FileText, ChevronRight, ChevronDown, Plus, Trash2, Edit, Save, 
 import { columnsApi } from '../../lib/api';
 import api from '../../lib/api';
 import Toast from '../../components/Toast';
+import Loading from '../../components/Loading';
 
 const TreeNode = ({ node, level = 0, onToggle, onEdit, onDelete, onAddChild, expandedNodes }) => {
     const isExpanded = expandedNodes.includes(node.id);
@@ -204,7 +205,7 @@ export default function ColumnStructure() {
         }
     };
 
-    if (loading) return <div className="p-8 text-center">加载中...</div>;
+    if (loading) return <Loading />;
     if (!column) return <div className="p-8 text-center">未找到专栏</div>;
 
     return (

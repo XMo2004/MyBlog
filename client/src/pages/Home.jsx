@@ -1,10 +1,11 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { motion as Motion } from 'framer-motion';
 import { ArrowRight, Calendar, Sparkles } from 'lucide-react';
 import api, { settingsApi } from '../lib/api';
-import ThreeBackground from '../components/ThreeBackground';
+import ErrorBoundary from '../components/ErrorBoundary';
+const ThreeBackground = React.lazy(() => import('../components/ThreeBackground'));
 
 const TypewriterText = ({ texts, typingSpeed = 100, deleteSpeed = 50, pauseDuration = 2000 }) => {
     const [currentTextIndex, setCurrentTextIndex] = useState(0);
@@ -99,9 +100,12 @@ export const Home = () => {
 
     return (
         <div className="space-y-16">
-            {/* Hero Section */}
             <section className="relative text-center space-y-6 pt-16 pb-12 min-h-[45vh] flex flex-col justify-center items-center">
-                <ThreeBackground />
+                <ErrorBoundary>
+                    <Suspense fallback={null}>
+                        <ThreeBackground />
+                    </Suspense>
+                </ErrorBoundary>
 
                 {/* Subtle Gradients */}
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/5 blur-[120px] -z-10 rounded-full pointer-events-none" />
@@ -244,3 +248,5 @@ export const Home = () => {
         </div>
     );
 };
+
+export default Home;

@@ -131,3 +131,5 @@ export const Tags = () => {
         </div>
     );
 };
+
+export default Tags;

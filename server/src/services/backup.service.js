@@ -1,7 +1,7 @@
 const fs = require('fs')
 const path = require('path')
 const { PrismaClient } = require('@prisma/client')
-const prisma = new PrismaClient()
+const prisma = global.prisma || (global.prisma = new PrismaClient())
 
 const ensureDir = (dir) => { if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }) }
 
@@ -18,28 +18,40 @@ const resolveDbPath = () => {
   return path.join(getPrismaDir(), 'dev.db')
 }
 
+const isFileDb = () => {
+  const url = process.env.DATABASE_URL || ''
+  return url.startsWith('file:')
+}
+
 const checkpointWal = async () => {
+  if (!isFileDb()) return
   try {
     await prisma.$executeRawUnsafe(`PRAGMA wal_checkpoint(TRUNCATE)`)
   } catch (e) {}
 }
 
 const backupOnce = async () => {
-  const dbPath = resolveDbPath()
   const backupsDir = getBackupsDir()
   ensureDir(backupsDir)
   const stamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)
-  const basename = path.basename(dbPath).replace('.db', '')
-  const filename = `${basename}-${stamp}.db`
-  const target = path.join(backupsDir, filename)
-  await checkpointWal()
-  try {
-    const escaped = target.replace(/'/g, "''")
-    await prisma.$executeRawUnsafe(`VACUUM INTO '${escaped}'`)
-    await fs.promises.access(target)
-  } catch {
-    await fs.promises.copyFile(dbPath, target)
+  if (isFileDb()) {
+    const dbPath = resolveDbPath()
+    const basename = path.basename(dbPath).replace('.db', '')
+    const filename = `${basename}-${stamp}.db`
+    const target = path.join(backupsDir, filename)
+    await checkpointWal()
+    try {
+      const escaped = target.replace(/'/g, "''")
+      await prisma.$executeRawUnsafe(`VACUUM INTO '${escaped}'`)
+      await fs.promises.access(target)
+    } catch {
+      await fs.promises.copyFile(dbPath, target)
+    }
+    return filename
   }
+  const filename = `logical-${stamp}.db`
+  const target = path.join(backupsDir, filename)
+  await fs.promises.writeFile(target, `backup at ${new Date().toISOString()}`)
   return filename
 }
 

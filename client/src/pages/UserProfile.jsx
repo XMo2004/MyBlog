@@ -1,24 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-    User, 
-    Shield, 
-    LogOut, 
-    Home, 
-    Camera, 
-    Save, 
-    X,
+import {
+    User,
+    Shield,
+    LogOut,
+    Home,
     ChevronRight,
     Lock,
-    Mail,
     Phone,
     LayoutDashboard,
     Bookmark,
     FolderPlus,
-    Trash2,
-    Edit2,
-    MoreVertical
+    Trash2
 } from 'lucide-react';
 import api from '../lib/api';
 import Toast from '../components/Toast';
@@ -409,7 +403,7 @@ const FavoritesTab = () => {
             await api.delete(`/bookmarks/${bookmarkId}`);
             fetchBookmarks(selectedCollection.id);
             setToast({ message: '已取消收藏', type: 'success' });
-        } catch (err) {
+        } catch {
             setToast({ message: '取消收藏失败', type: 'error' });
         }
     };
@@ -621,3 +615,5 @@ export const UserProfile = () => {
         </div>
     );
 };
+
+export default UserProfile;

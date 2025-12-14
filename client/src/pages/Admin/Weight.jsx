@@ -13,6 +13,7 @@ import {
 import { weightApi, dietApi } from '../../lib/api';
 import Toast from '../../components/Toast';
 import DatePicker from '../../components/DatePicker';
+import Loading from '../../components/Loading';
 
 const MEAL_SLOTS = [
     { key: 'breakfast', label: '早餐' },
@@ -763,7 +764,7 @@ const Weight = () => {
                             {activeTab === 'diet' ? (
                                 <div className="divide-y divide-border">
                                     {dietLoading ? (
-                                        <div className="p-8 text-center text-muted-foreground text-sm">加载中...</div>
+                                        <Loading />
                                     ) : (
                                         <>
                                             {groupedDiet.map((group) => (

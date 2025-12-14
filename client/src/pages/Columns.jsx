@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Columns as ColumnsIcon, BookOpen, ArrowRight, Star, Clock, TrendingUp, Code, Folder, Lightbulb, Wrench, Rocket, Layers } from 'lucide-react';
 import { columnsApi } from '../lib/api';
+import Loading from '../components/Loading';
 
 export const Columns = () => {
     const [columns, setColumns] = useState([]);
@@ -44,7 +45,7 @@ export const Columns = () => {
         fetchColumns();
     }, []);
 
-    if (loading) return <div className="text-center py-20">加载中...</div>;
+    if (loading) return <Loading />;
 
     return (
         <div className="space-y-12">
@@ -179,3 +180,5 @@ export const Columns = () => {
         </div>
     );
 };
+
+export default Columns;

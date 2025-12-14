@@ -9,6 +9,7 @@ import {
     PieChart, Pie, Cell, Legend
 } from 'recharts';
 import { adminApi } from '../../lib/api';
+import Loading from '../../components/Loading';
 
 // 动画变体配置
 const containerVariants = {
@@ -201,11 +202,7 @@ export const Dashboard = () => {
         );
     };
 
-    if (loading) return (
-        <div className="flex justify-center items-center min-h-[400px]">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
-    );
+    if (loading) return <Loading />;
 
     if (error) return (
         <div className="flex flex-col items-center justify-center min-h-[400px] text-destructive gap-4">
@@ -447,3 +444,5 @@ export const Dashboard = () => {
         </motion.div>
     );
 };
+
+export default Dashboard;

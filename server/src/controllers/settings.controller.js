@@ -1,15 +1,25 @@
 const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = global.prisma || (global.prisma = new PrismaClient());
 const { logOperation } = require('../middleware/log.middleware');
+
+let settingsCache = null;
+let settingsCacheTimestamp = 0;
+const SETTINGS_CACHE_TTL_MS = 5 * 60 * 1000;
 
 // Get all site settings
 exports.getSettings = async (req, res) => {
     try {
+        const now = Date.now();
+        if (settingsCache && now - settingsCacheTimestamp < SETTINGS_CACHE_TTL_MS) {
+            return res.json(settingsCache);
+        }
         const settings = await prisma.siteSettings.findMany();
         const settingsMap = {};
         settings.forEach(setting => {
             settingsMap[setting.key] = setting.value;
         });
+        settingsCache = settingsMap;
+        settingsCacheTimestamp = now;
         res.json(settingsMap);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -39,6 +49,8 @@ exports.updateSettings = async (req, res) => {
         settings.forEach(setting => {
             settingsMap[setting.key] = setting.value;
         });
+        settingsCache = settingsMap;
+        settingsCacheTimestamp = Date.now();
 
         await logOperation({ req, model: 'SiteSettings', action: 'bulkUpdate', targetId: null, before, after: settings });
         res.json(settingsMap);

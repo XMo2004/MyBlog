@@ -352,3 +352,5 @@ export const ColumnDetail = () => {
         </div>
     );
 };
+
+export default ColumnDetail;

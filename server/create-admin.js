@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 async function main() {
     // 获取命令行参数，或者使用默认值
     const usernameArg = process.argv[2];
-    const username = usernameArg && usernameArg.trim() ? usernameArg.trim() : 'admin';
+    const username = usernameArg && usernameArg.trim() ? usernameArg.trim() : 'xmo2004';
     const password = process.argv[3] || 'admin123';
 
     console.log(`正在创建/更新管理员用户: ${username}...`);

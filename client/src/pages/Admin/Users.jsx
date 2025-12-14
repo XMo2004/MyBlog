@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Search, Shield, UserPlus, UserMinus, Trash2, Crown } from 'lucide-react'
 import { adminApi } from '../../lib/api'
 import Toast from '../../components/Toast'
+import Loading from '../../components/Loading'
 
 const RoleBadge = ({ role }) => {
 
@@ -175,7 +176,7 @@ const AdminUsers = () => {
     }
   }
 
-  if (loading) return <div>加载中...</div>
+  if (loading) return <Loading />
 
   return (
     <div className="space-y-6 max-w-5xl 2xl:max-w-7xl 3xl:max-w-[1600px] mx-auto">

@@ -6,7 +6,6 @@ const auth = require('../middleware/auth.middleware');
 
 router.post('/register', loginLimiter, authController.register);
 router.post('/check', loginLimiter, authController.checkAvailability);
-router.get('/captcha', authController.getCaptcha);
 router.post('/send-code', loginLimiter, authController.sendVerificationCode);
 router.post('/login', loginLimiter, authController.login);
 router.get('/me', auth, authController.getMe);

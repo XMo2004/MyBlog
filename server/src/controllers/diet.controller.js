@@ -1,5 +1,5 @@
 const { PrismaClient } = require('@prisma/client')
-const prisma = new PrismaClient()
+const prisma = global.prisma || (global.prisma = new PrismaClient())
 const { logOperation } = require('../middleware/log.middleware')
 
 const normalizeDate = (value) => {
@@ -153,4 +153,3 @@ exports.deleteDiet = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message })
   }
 }
-

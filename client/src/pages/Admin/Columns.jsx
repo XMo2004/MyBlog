@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Trash2, Edit2, BookOpen, Search, X, Layers, Code, Folder, Lightbulb, Wrench, Rocket } from 'lucide-react';
 import { columnsApi } from '../../lib/api';
 import Toast from '../../components/Toast';
+import Loading from '../../components/Loading';
 
 const AdminColumns = () => {
     const navigate = useNavigate();
@@ -116,6 +117,8 @@ const AdminColumns = () => {
             setMessage({ type: 'error', text: '批量删除失败' });
         }
     };
+
+    if (isLoading) return <Loading />;
 
     return (
         <div className="space-y-6">

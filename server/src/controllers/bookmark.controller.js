@@ -1,5 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = global.prisma || (global.prisma = new PrismaClient());
 
 // Get all bookmark collections for the current user
 exports.getCollections = async (req, res) => {

@@ -14,7 +14,8 @@ import {
     BookOpen,
     Scale
 } from 'lucide-react';
-import { ThemeToggle, useTheme } from '../components/ThemeToggle';
+import { ThemeToggle } from '../components/ThemeToggle';
+import useTheme from '../components/useTheme';
 
 const SidebarItem = ({ icon, label, path, isActive }) => (
     <Link

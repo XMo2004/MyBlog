@@ -1,12 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import MarkdownRenderer from '../components/MarkdownRenderer';
-import TOC from '../components/TOC';
+import ErrorBoundary from '../components/ErrorBoundary';
+const MarkdownRenderer = React.lazy(() => import('../components/MarkdownRenderer'));
+const TOC = React.lazy(() => import('../components/TOC'));
 import MembershipUpgradePrompt from '../components/MembershipUpgradePrompt';
 import CommentSection from '../components/CommentSection';
 import { ArrowLeft, Calendar, Tag, Folder, PanelRightOpen, PanelRightClose, Bookmark, Plus, X } from 'lucide-react';
 import api from '../lib/api';
 import Toast from '../components/Toast';
+import Loading from '../components/Loading';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export const PostDetail = () => {
@@ -119,7 +121,7 @@ export const PostDetail = () => {
         }
     };
 
-    if (loading) return <div className="text-center py-20 text-muted-foreground">加载中...</div>;
+    if (loading) return <Loading />;
     
     if (accessError) {
         return (
@@ -190,7 +192,11 @@ export const PostDetail = () => {
                     </header>
 
                     <div className="pb-10">
-                        <MarkdownRenderer content={post.content} className="article-content prose-lg 2xl:prose-xl max-w-none" />
+                        <ErrorBoundary>
+                            <Suspense fallback={<div className="text-center py-10 text-muted-foreground">正文加载中...</div>}>
+                                <MarkdownRenderer content={post.content} className="article-content prose-xl 2xl:prose-2xl max-w-none" />
+                            </Suspense>
+                        </ErrorBoundary>
                     </div>
 
                     <CommentSection postId={post.id} comments={post.comments} user={user} />
@@ -211,7 +217,11 @@ export const PostDetail = () => {
                 }`}
             >
                 <div className="h-full overflow-y-auto p-4 custom-scrollbar">
-                    <TOC content={post.content} />
+                    <ErrorBoundary>
+                        <Suspense fallback={<div className="text-sm text-muted-foreground">目录加载中...</div>}>
+                            <TOC content={post.content} />
+                        </Suspense>
+                    </ErrorBoundary>
                 </div>
             </div>
 
@@ -286,3 +296,5 @@ export const PostDetail = () => {
         </div>
     );
 };
+
+export default PostDetail;

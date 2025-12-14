@@ -1,47 +1,11 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const svgCaptcha = require('svg-captcha');
-const { v4: uuidv4 } = require('uuid');
 
-const prisma = new PrismaClient();
+const prisma = global.prisma || (global.prisma = new PrismaClient());
 
 // In-memory store for verification codes (phone -> {code, expiresAt})
 const verificationCodes = new Map();
-
-// In-memory store for CAPTCHA codes (captchaId -> {text, expiresAt})
-const captchaCodes = new Map();
-
-// Clean up expired CAPTCHAs periodically (every 5 minutes)
-setInterval(() => {
-    const now = Date.now();
-    for (const [id, data] of captchaCodes.entries()) {
-        if (now > data.expiresAt) {
-            captchaCodes.delete(id);
-        }
-    }
-}, 5 * 60 * 1000);
-
-exports.getCaptcha = (req, res) => {
-    const captcha = svgCaptcha.create({
-        size: 4,
-        ignoreChars: '0o1i',
-        noise: 2,
-        color: true,
-        background: '#f0f0f0'
-    });
-
-    const captchaId = uuidv4();
-    captchaCodes.set(captchaId, {
-        text: captcha.text.toLowerCase(),
-        expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes
-    });
-
-    res.json({
-        captchaId,
-        svg: captcha.data
-    });
-};
 
 exports.sendVerificationCode = async (req, res) => {
     try {
@@ -103,22 +67,11 @@ exports.checkAvailability = async (req, res) => {
 
 exports.register = async (req, res) => {
     try {
-        const { username, password, phone, verificationCode, captchaId, captchaText } = req.body;
-        if (!username || !password || !phone || !verificationCode || !captchaId || !captchaText) {
+        const { username, password, phone, verificationCode } = req.body;
+        if (!username || !password || !phone || !verificationCode) {
             return res.status(400).json({ message: 'All fields are required' });
         }
         
-        // Verify CAPTCHA first
-        const storedCaptcha = captchaCodes.get(captchaId);
-        if (!storedCaptcha) {
-            return res.status(400).json({ message: 'CAPTCHA expired or invalid' });
-        }
-        if (storedCaptcha.text !== captchaText.toLowerCase()) {
-            return res.status(400).json({ message: 'Invalid CAPTCHA' });
-        }
-        // Delete used CAPTCHA
-        captchaCodes.delete(captchaId);
-
         const u = String(username).trim();
         const p = String(password);
         if (!/^[A-Za-z0-9_]{3,32}$/.test(u)) {

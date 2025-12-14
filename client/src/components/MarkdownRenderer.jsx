@@ -410,7 +410,14 @@ const CalloutBlock = ({ className, children, ...props }) => {
   );
 };
 
-const MarkdownRenderer = ({ content, className }) => {
+const MarkdownRenderer = ({ content: _content, className }) => {
+  // Ensure content is a string
+  const content = typeof _content === 'string' 
+    ? _content 
+    : (_content === null || _content === undefined) 
+      ? '' 
+      : String(_content);
+
   const headingCounts = {}
   const getNodeText = (node) => {
     if (!node) return ''
@@ -460,6 +467,21 @@ const MarkdownRenderer = ({ content, className }) => {
           span({ node, className, children, ...props }) {
             if (className === 'spoiler') {
               return <Spoiler as="span" className={className} {...props}>{children}</Spoiler>
+            }
+            // Handle annotation spans
+            if (props['data-explanation']) {
+              const explanation = props['data-explanation'];
+              return (
+                <span 
+                  {...props} 
+                  className={twMerge("annotation", className)}
+                >
+                  {children}
+                  <span className="annotation-tooltip">
+                    {explanation}
+                  </span>
+                </span>
+              );
             }
             return <span className={className} {...props}>{children}</span>
           },
@@ -624,7 +646,49 @@ const MarkdownRenderer = ({ content, className }) => {
           },
           hr({ node, ...props }) {
             return <hr {...props} className="my-12 border-border/60" />
+          },
+          span({ node, className, children, ...props }) {
+            // Handle annotation spans with click trigger
+            if (props['data-explanation']) {
+              const explanation = props['data-explanation'];
+              const [isOpen, setIsOpen] = React.useState(false);
+              const spanRef = React.useRef(null);
+              
+              React.useEffect(() => {
+                const handleClickOutside = (event) => {
+                  if (spanRef.current && !spanRef.current.contains(event.target)) {
+                    setIsOpen(false);
+                  }
+                };
+                
+                if (isOpen) {
+                  document.addEventListener('mousedown', handleClickOutside);
+                  return () => document.removeEventListener('mousedown', handleClickOutside);
+                }
+              }, [isOpen]);
+              
+              return (
+                <span 
+                  ref={spanRef}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsOpen(!isOpen);
+                  }}
+                  className={twMerge("annotation-click", className)}
+                  style={{ position: 'relative' }}
+                >
+                  {children}
+                  {isOpen && (
+                    <span className="annotation-tooltip-click">
+                      {explanation}
+                    </span>
+                  )}
+                </span>
+              );
+            }
+            return <span {...props} className={className}>{children}</span>;
           }
+
         }}
       >
         {content}

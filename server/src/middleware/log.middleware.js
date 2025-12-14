@@ -1,5 +1,5 @@
 const { PrismaClient } = require('@prisma/client')
-const prisma = new PrismaClient()
+const prisma = global.prisma || (global.prisma = new PrismaClient())
 
 const logOperation = async ({ req, model, action, targetId, before, after }) => {
   try {

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Package, Download, ExternalLink, Github, Star, BookOpen, Wrench, Code, Palette, Link as LinkIcon, Folder } from 'lucide-react';
 import { resourcesApi } from '../lib/api';
+import Loading from '../components/Loading';
 
 const getTypeIcon = (type) => {
     switch (type) {
@@ -61,7 +62,8 @@ export const Resources = () => {
         fetchResources();
     }, []);
 
-    if (loading) return <div className="text-center py-20">加载中...</div>;
+    if (loading) return <Loading />;
+
 
     return (
         <div className="space-y-12">
@@ -170,3 +172,5 @@ export const Resources = () => {
         </div>
     );
 };
+
+export default Resources;
