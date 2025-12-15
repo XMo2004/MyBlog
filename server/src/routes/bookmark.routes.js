@@ -16,6 +16,7 @@ router.delete('/collections/:id', bookmarkController.deleteCollection);
 router.get('/', bookmarkController.getBookmarks);
 router.post('/', bookmarkController.addBookmark);
 router.post('/toggle', bookmarkController.toggleBookmark);
+router.put('/:id', bookmarkController.updateBookmark);
 router.delete('/:id', bookmarkController.removeBookmark);
 router.delete('/post/:postId', bookmarkController.removeBookmarkByPost);
 router.get('/check/:postId', bookmarkController.checkBookmarkStatus);

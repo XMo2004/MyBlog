@@ -32,7 +32,7 @@ app.use(helmet({
 }));
 
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '10mb' }));
-              app.use(generalLimiter);
+app.use(generalLimiter);
 
 // Basic Route
 app.get('/', (req, res) => {
@@ -59,6 +59,7 @@ app.use('/api/visit', require('./routes/visit.routes'));
 app.use('/api/weight', require('./routes/weight.routes'));
 app.use('/api/diet', require('./routes/diet.routes'));
 app.use('/api/bookmarks', require('./routes/bookmark.routes'));
+app.use('/api/memories', require('./routes/memory.routes'));
 
 // Error handler (last)
 app.use((err, req, res, next) => {

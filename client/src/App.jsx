@@ -16,10 +16,12 @@ const Columns = React.lazy(() => import('./pages/Columns'));
 const ColumnDetail = React.lazy(() => import('./pages/ColumnDetail'));
 const Resources = React.lazy(() => import('./pages/Resources'));
 const Projects = React.lazy(() => import('./pages/Projects'));
+const Memories = React.lazy(() => import('./pages/Memories'));
 const About = React.lazy(() => import('./pages/About'));
 const Login = React.lazy(() => import('./pages/Login'));
 const Register = React.lazy(() => import('./pages/Register'));
 const UserProfile = React.lazy(() => import('./pages/UserProfile'));
+const MathTest = React.lazy(() => import('./pages/MathTest'));
 const Dashboard = React.lazy(() => import('./pages/Admin/Dashboard'));
 const Posts = React.lazy(() => import('./pages/Admin/Posts'));
 const AdminSettings = React.lazy(() => import('./pages/Admin/Settings'));
@@ -35,6 +37,7 @@ const AdminWeight = React.lazy(() => import('./pages/Admin/Weight'));
 const AdminComments = React.lazy(() => import('./pages/Admin/Comments'));
 const AdminAnalytics = React.lazy(() => import('./pages/Admin/Analytics'));
 const AdminCategories = React.lazy(() => import('./pages/Admin/Categories'));
+const AdminMemories = React.lazy(() => import('./pages/Admin/Memories'));
 
 const VisitTracker = () => {
   const location = useLocation();
@@ -65,8 +68,10 @@ function App() {
             <Route path="/columns/:id" element={<ColumnDetail />} />
             <Route path="/resources" element={<Resources />} />
             <Route path="/projects" element={<Projects />} />
+            <Route path="/memories" element={<Memories />} />
             <Route path="/weight" element={<Weight />} />
             <Route path="/about" element={<About />} />
+            <Route path="/math-test" element={<MathTest />} />
             <Route
               path="/profile"
               element={
@@ -101,6 +106,7 @@ function App() {
             <Route path="comments" element={<AdminComments />} />
             <Route path="analytics" element={<AdminAnalytics />} />
             <Route path="categories" element={<AdminCategories />} />
+            <Route path="memories" element={<AdminMemories />} />
           </Route>
         </Routes>
         </Suspense>

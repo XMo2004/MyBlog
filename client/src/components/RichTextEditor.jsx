@@ -8,6 +8,7 @@ import Highlight from '@tiptap/extension-highlight';
 import FontFamily from '@tiptap/extension-font-family';
 import TextAlign from '@tiptap/extension-text-align';
 import Underline from '@tiptap/extension-underline';
+import CodeBlock from '@tiptap/extension-code-block';
 import { Markdown } from 'tiptap-markdown';
 import { Extension, Mark, Node, mergeAttributes } from '@tiptap/core';
 import HardBreak from '@tiptap/extension-hard-break';
@@ -19,13 +20,12 @@ import {
     Type, Palette, Highlighter, RemoveFormatting,
     AlignLeft, AlignCenter, AlignRight, Ghost, X,
     Info, AlertTriangle, XCircle, CheckCircle2, Lightbulb,
-    Image as ImageIcon, MessageSquare, GitBranch, ListChecks
+    Image as ImageIcon, MessageSquare, ListChecks, Sigma, ChevronDown
 } from 'lucide-react';
 import AnnotationDialog from './AnnotationDialog';
-import MindMapDialog from './MindMapDialog';
-import QuizDialog from './QuizDialog';
-import MindMap from './MindMap';
-import Quiz from './Quiz';
+import CodeBlockComponent from './CodeBlockComponent';
+import { InlineMath, BlockMath } from './MathExtension';
+import { Details } from './DetailsExtension';
 
 // 防抖 Hook
 const useDebounce = (callback, delay) => {
@@ -286,151 +286,6 @@ const Callout = Node.create({
                 }
             }
         }
-    },
-});
-
-// MindMap Node View Component
-const MindMapNodeView = ({ node, updateAttributes }) => {
-    return (
-        <NodeViewWrapper className="my-4">
-            <MindMap
-                data={node.attrs.data}
-                onDataChange={(newData) => updateAttributes({ data: newData })}
-                readOnly={false}
-            />
-        </NodeViewWrapper>
-    );
-};
-
-// MindMap Extension
-const MindMapNode = Node.create({
-    name: 'mindmap',
-    group: 'block',
-    atom: true,
-    draggable: true,
-
-    addAttributes() {
-        return {
-            data: {
-                default: JSON.stringify({ id: 'root', text: '思维导图', children: [] }),
-                parseHTML: element => element.getAttribute('data-mindmap'),
-                renderHTML: attributes => {
-                    return { 'data-mindmap': attributes.data };
-                },
-            },
-        };
-    },
-
-    parseHTML() {
-        return [
-            {
-                tag: 'div[data-type="mindmap"]',
-            },
-        ];
-    },
-
-    renderHTML({ HTMLAttributes }) {
-        return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'mindmap' }), 0];
-    },
-
-    addNodeView() {
-        return ReactNodeViewRenderer(MindMapNodeView);
-    },
-
-    addCommands() {
-        return {
-            insertMindMap: (data) => ({ commands }) => {
-                return commands.insertContent({
-                    type: this.name,
-                    attrs: { data },
-                });
-            },
-        };
-    },
-
-    addStorage() {
-        return {
-            markdown: {
-                serialize(state, node) {
-                    const data = node.attrs.data || '{}';
-                    state.write(`\n\`\`\`mindmap\n${data}\n\`\`\`\n`);
-                },
-            },
-        };
-    },
-});
-
-// Quiz Node View Component
-const QuizNodeView = ({ node }) => {
-    return (
-        <NodeViewWrapper className="my-4">
-            <Quiz data={node.attrs.data} />
-        </NodeViewWrapper>
-    );
-};
-
-// Quiz Extension
-const QuizNode = Node.create({
-    name: 'quiz',
-    group: 'block',
-    atom: true,
-    draggable: true,
-
-    addAttributes() {
-        return {
-            data: {
-                default: JSON.stringify({
-                    question: '问题',
-                    options: [],
-                    correctAnswers: [],
-                    explanation: '',
-                    isMultiple: false,
-                    shuffle: true
-                }),
-                parseHTML: element => element.getAttribute('data-quiz'),
-                renderHTML: attributes => {
-                    return { 'data-quiz': attributes.data };
-                },
-            },
-        };
-    },
-
-    parseHTML() {
-        return [
-            {
-                tag: 'div[data-type="quiz"]',
-            },
-        ];
-    },
-
-    renderHTML({ HTMLAttributes }) {
-        return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'quiz' }), 0];
-    },
-
-    addNodeView() {
-        return ReactNodeViewRenderer(QuizNodeView);
-    },
-
-    addCommands() {
-        return {
-            insertQuiz: (data) => ({ commands }) => {
-                return commands.insertContent({
-                    type: this.name,
-                    attrs: { data },
-                });
-            },
-        };
-    },
-
-    addStorage() {
-        return {
-            markdown: {
-                serialize(state, node) {
-                    const data = node.attrs.data || '{}';
-                    state.write(`\n\`\`\`quiz\n${data}\n\`\`\`\n`);
-                },
-            },
-        };
     },
 });
 
@@ -906,7 +761,7 @@ const ToolbarGroup = ({ children, className = "" }) => (
     </div>
 );
 
-const MenuBar = ({ editor, onOpenAnnotation, onOpenMindMap, onOpenQuiz }) => {
+const MenuBar = ({ editor, onOpenAnnotation }) => {
     if (!editor) {
         return null;
     }
@@ -1190,16 +1045,54 @@ const MenuBar = ({ editor, onOpenAnnotation, onOpenMindMap, onOpenQuiz }) => {
 
             <ToolbarGroup>
                 <ToolbarButton
-                    onClick={() => onOpenMindMap && onOpenMindMap()}
-                    title="插入思维导图"
-                >
-                    <GitBranch size={16} />
-                </ToolbarButton>
-                <ToolbarButton
-                    onClick={() => onOpenQuiz && onOpenQuiz()}
+                    onClick={() => {
+                        const template = JSON.stringify({
+                            question: "这是一个示例问题？",
+                            options: ["选项 A", "选项 B", "选项 C"],
+                            correctAnswer: "选项 A",
+                            explanation: "这是解析内容。"
+                        }, null, 2);
+                        editor.chain().focus().insertContent(`\`\`\`quiz\n${template}\n\`\`\`\n`).run();
+                    }}
                     title="插入选择题"
                 >
                     <ListChecks size={16} />
+                </ToolbarButton>
+                <ToolbarButton
+                    onClick={() => {
+                        editor.chain().focus().insertDetails({ title: '点击展开', open: true }).run();
+                    }}
+                    isActive={editor.isActive('details')}
+                    title="插入可折叠块"
+                >
+                    <ChevronDown size={16} />
+                </ToolbarButton>
+            </ToolbarGroup>
+
+            <ToolbarGroup>
+                <ToolbarButton
+                    onClick={() => {
+                        const latex = prompt('输入行内 LaTeX 公式 (例如: E = mc^2):');
+                        if (latex) {
+                            editor.chain().focus().setInlineMath(latex.trim()).run();
+                        }
+                    }}
+                    isActive={editor.isActive('inlineMath')}
+                    title="插入行内公式"
+                >
+                    <Sigma size={16} />
+                </ToolbarButton>
+                <ToolbarButton
+                    onClick={() => {
+                        const latex = prompt('输入块级 LaTeX 公式 (例如: \\int_0^\\infty e^{-x^2} dx):');
+                        if (latex) {
+                            editor.chain().focus().setBlockMath(latex.trim()).run();
+                        }
+                    }}
+                    isActive={editor.isActive('blockMath')}
+                    title="插入块级公式"
+                >
+                    <Sigma size={18} strokeWidth={2.5} />
                 </ToolbarButton>
             </ToolbarGroup>
 
@@ -1373,8 +1266,6 @@ const ImageBubbleMenuContent = ({ editor }) => {
 const RichTextEditor = ({ content, onChange, className = '', editorClassName = '', variant = 'default' }) => {
     const [isAnnotationDialogOpen, setIsAnnotationDialogOpen] = useState(false);
     const [currentAnnotation, setCurrentAnnotation] = useState('');
-    const [isMindMapDialogOpen, setIsMindMapDialogOpen] = useState(false);
-    const [isQuizDialogOpen, setIsQuizDialogOpen] = useState(false);
     const [editorError, setEditorError] = useState(null);
     const onChangeRef = useRef(onChange);
     
@@ -1400,6 +1291,16 @@ const RichTextEditor = ({ content, onChange, className = '', editorClassName = '
             hardBreak: false,
             paragraph: false,
             text: false,
+            codeBlock: false,
+        }),
+        CodeBlock.configure({
+            HTMLAttributes: {
+                class: 'code-block',
+            },
+        }).extend({
+            addNodeView() {
+                return ReactNodeViewRenderer(CodeBlockComponent)
+            },
         }),
         CustomText,
         CustomHardBreak,
@@ -1407,9 +1308,10 @@ const RichTextEditor = ({ content, onChange, className = '', editorClassName = '
         Spoiler,
         Annotation,
         Callout,
+        Details,
         ImageNode,
-        MindMapNode,
-        QuizNode,
+        InlineMath,
+        BlockMath,
         TextStyle,
         Color,
         Highlight.configure({ multicolor: true }),
@@ -1663,7 +1565,7 @@ const RichTextEditor = ({ content, onChange, className = '', editorClassName = '
                 <>
                     <BubbleMenu 
                         editor={editor} 
-                        tippyOptions={{ duration: 100 }}
+                        tippyOptions={{ duration: 100, appendTo: document.body }}
                         shouldShow={({ editor, state }) => {
                             const { selection } = state;
                             return !selection.empty && !editor.isActive('image');
@@ -1722,13 +1624,13 @@ const RichTextEditor = ({ content, onChange, className = '', editorClassName = '
 
                     <BubbleMenu
                         editor={editor}
-                        tippyOptions={{ duration: 100, placement: 'bottom' }}
+                        tippyOptions={{ duration: 100, placement: 'bottom', appendTo: document.body }}
                         shouldShow={({ editor }) => editor.isActive('image')}
                     >
                         <ImageBubbleMenuContent editor={editor} />
                     </BubbleMenu>
 
-                    <FloatingMenu editor={editor} tippyOptions={{ duration: 100 }}>
+                    <FloatingMenu editor={editor} tippyOptions={{ duration: 100, appendTo: document.body }}>
                         <div className="flex items-center gap-1 p-1.5 rounded-xl border border-border bg-popover shadow-xl text-popover-foreground animate-in fade-in zoom-in-95">
                             <ToolbarButton
                                 onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
@@ -1768,8 +1670,6 @@ const RichTextEditor = ({ content, onChange, className = '', editorClassName = '
                     setCurrentAnnotation(explanation);
                     setIsAnnotationDialogOpen(true);
                 }}
-                onOpenMindMap={() => setIsMindMapDialogOpen(true)}
-                onOpenQuiz={() => setIsQuizDialogOpen(true)}
             />
             <div className="bg-background">
                 <EditorContent editor={editor} />
@@ -1794,25 +1694,6 @@ const RichTextEditor = ({ content, onChange, className = '', editorClassName = '
                 }}
             />
 
-            <MindMapDialog
-                isOpen={isMindMapDialogOpen}
-                onClose={() => setIsMindMapDialogOpen(false)}
-                onConfirm={(data) => {
-                    if (editor) {
-                        editor.chain().focus().insertMindMap(data).run();
-                    }
-                }}
-            />
-
-            <QuizDialog
-                isOpen={isQuizDialogOpen}
-                onClose={() => setIsQuizDialogOpen(false)}
-                onConfirm={(data) => {
-                    if (editor) {
-                        editor.chain().focus().insertQuiz(data).run();
-                    }
-                }}
-            />
         </div>
     );
 };

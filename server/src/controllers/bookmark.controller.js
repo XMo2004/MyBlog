@@ -297,6 +297,107 @@ exports.removeBookmarkByPost = async (req, res) => {
     }
 };
 
+// Move a bookmark to another collection
+exports.updateBookmark = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const { id } = req.params;
+        const { collectionId } = req.body;
+
+        const bookmarkId = parseInt(id);
+        const targetCollectionId = parseInt(collectionId);
+
+        if (!bookmarkId || Number.isNaN(bookmarkId)) {
+            return res.status(400).json({ message: '无效的收藏 ID' });
+        }
+        if (!targetCollectionId || Number.isNaN(targetCollectionId)) {
+            return res.status(400).json({ message: '无效的收藏夹 ID' });
+        }
+
+        const bookmark = await prisma.bookmark.findFirst({
+            where: {
+                id: bookmarkId,
+                userId
+            }
+        });
+
+        if (!bookmark) {
+            return res.status(404).json({ message: '收藏不存在' });
+        }
+
+        const targetCollection = await prisma.bookmarkCollection.findFirst({
+            where: {
+                id: targetCollectionId,
+                userId
+            }
+        });
+
+        if (!targetCollection) {
+            return res.status(404).json({ message: '目标收藏夹不存在' });
+        }
+
+        if (bookmark.collectionId === targetCollectionId) {
+            const unchanged = await prisma.bookmark.findUnique({
+                where: { id: bookmarkId },
+                include: {
+                    post: {
+                        select: {
+                            id: true,
+                            title: true,
+                            summary: true,
+                            published: true,
+                            createdAt: true,
+                            category: { select: { id: true, name: true } }
+                        }
+                    },
+                    collection: { select: { id: true, name: true } }
+                }
+            });
+            return res.json(unchanged);
+        }
+
+        const duplicate = await prisma.bookmark.findFirst({
+            where: {
+                userId,
+                postId: bookmark.postId,
+                collectionId: targetCollectionId
+            }
+        });
+
+        if (duplicate) {
+            return res.status(400).json({ message: '目标收藏夹已存在该文章的收藏' });
+        }
+
+        const updated = await prisma.bookmark.update({
+            where: { id: bookmarkId },
+            data: {
+                collectionId: targetCollectionId
+            },
+            include: {
+                post: {
+                    select: {
+                        id: true,
+                        title: true,
+                        summary: true,
+                        published: true,
+                        createdAt: true,
+                        category: { select: { id: true, name: true } }
+                    }
+                },
+                collection: { select: { id: true, name: true } }
+            }
+        });
+
+        res.json(updated);
+    } catch (error) {
+        console.error('Update bookmark error:', error);
+        if (error.code === 'P2002') {
+            return res.status(400).json({ message: '目标收藏夹已存在该文章的收藏' });
+        }
+        res.status(500).json({ message: '移动收藏失败' });
+    }
+};
+
 // Check bookmark status for a post
 exports.checkBookmarkStatus = async (req, res) => {
     try {

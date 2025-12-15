@@ -396,7 +396,7 @@ export const Dashboard = () => {
                         </div>
                     </div>
                     <div className="h-[200px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             <AreaChart data={userGrowthData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                                 <defs>
                                     <linearGradient id="colorUserGrowth" x1="0" y1="0" x2="0" y2="1">
@@ -429,7 +429,7 @@ export const Dashboard = () => {
                         </div>
                     </div>
                     <div className="h-[200px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             <BarChart data={commentTrendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                                 <XAxis dataKey="name" stroke="currentColor" className="text-muted-foreground text-xs" tickLine={false} axisLine={false} />
                                 <YAxis stroke="currentColor" className="text-muted-foreground text-xs" tickLine={false} axisLine={false} allowDecimals={false} />
@@ -458,7 +458,7 @@ export const Dashboard = () => {
                         </div>
                     </div>
                     <div className="h-[300px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             <AreaChart data={trendData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                                 <defs>
                                     <linearGradient id="colorVisits" x1="0" y1="0" x2="0" y2="1">
@@ -579,7 +579,7 @@ export const Dashboard = () => {
                         <h2 className="font-semibold text-lg">标签分布</h2>
                     </div>
                     <div className="h-[250px] w-full flex items-center justify-center">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             <PieChart>
                                 <Pie
                                     data={getPieData()}
@@ -613,7 +613,7 @@ export const Dashboard = () => {
                         <h2 className="font-semibold text-lg">分类分布</h2>
                     </div>
                     <div className="h-[250px] w-full flex items-center justify-center">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             <PieChart>
                                 <Pie
                                     data={getCategoryPieData()}
@@ -647,7 +647,7 @@ export const Dashboard = () => {
                         <h2 className="font-semibold text-lg">会员等级分布</h2>
                     </div>
                     <div className="h-[250px] w-full flex items-center justify-center">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             <PieChart>
                                 <Pie
                                     data={(stats.membershipDistribution || []).map(m => ({

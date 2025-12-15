@@ -110,7 +110,10 @@ const getSkillConfig = (name) => {
 };
 
 const SkillBadge = ({ skill, index }) => {
-    const { color, slug } = getSkillConfig(skill.name);
+    const skillName = typeof skill === 'string' ? skill : (skill?.name || '');
+    if (!skillName) return null;
+
+    const { color, slug } = getSkillConfig(skillName);
     const [iconError, setIconError] = useState(false);
     const iconUrl = `https://cdn.simpleicons.org/${slug}`;
 
@@ -128,15 +131,13 @@ const SkillBadge = ({ skill, index }) => {
                 y: -2
             }}
         >
-            {/* Background Tint on Hover */}
             <div className="absolute inset-0 bg-[var(--skill-color)]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
-            {/* Icon */}
             <div className="relative z-10 w-10 h-10 shrink-0 flex items-center justify-center bg-secondary/50 rounded-lg p-2 group-hover:bg-background/80 transition-colors duration-300">
                 {!iconError ? (
                     <img 
                         src={iconUrl} 
-                        alt={skill.name}
+                        alt={skillName}
                         className="w-full h-full object-contain filter grayscale opacity-60 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-300"
                         onError={() => setIconError(true)}
                     />
@@ -145,27 +146,11 @@ const SkillBadge = ({ skill, index }) => {
                 )}
             </div>
 
-            {/* Text Info */}
             <div className="relative z-10 flex flex-col min-w-0 flex-1">
-                <div className="flex justify-between items-end mb-1">
-                    <span className="font-bold text-sm truncate group-hover:text-[var(--skill-color)] transition-colors duration-300">
-                        {skill.name}
-                    </span>
-                    <span className="text-xs text-muted-foreground/70 font-mono group-hover:text-[var(--skill-color)] transition-colors duration-300">
-                        {skill.level}%
-                    </span>
-                </div>
-                
-                {/* Progress Bar */}
-                <div className="h-1.5 w-full bg-secondary/50 rounded-full overflow-hidden">
-                    <motion.div 
-                        initial={{ width: 0 }}
-                        whileInView={{ width: `${skill.level}%` }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 1, delay: 0.2 + (index * 0.05), ease: "easeOut" }}
-                        className="h-full bg-[var(--skill-color)] rounded-full shadow-[0_0_8px_var(--skill-color)]"
-                    />
-                </div>
+                <span className="font-bold text-sm truncate group-hover:text-[var(--skill-color)] transition-colors duration-300">
+                    {skillName}
+                </span>
+                <div className="mt-2 h-[3px] w-12 rounded-full bg-[var(--skill-color)]/60 group-hover:w-16 transition-all" />
             </div>
         </motion.div>
     );
@@ -221,6 +206,13 @@ export const About = () => {
     const [loading, setLoading] = useState(true);
     const [imgError, setImgError] = useState(false);
 
+    const normalizeSkills = (skills) => {
+        if (!Array.isArray(skills)) return [];
+        return skills
+            .map((item) => (typeof item === 'string' ? item : item?.name || ''))
+            .filter(Boolean);
+    };
+
     useEffect(() => {
         const fetchProfile = async () => {
             try {
@@ -255,6 +247,8 @@ export const About = () => {
                         ]
                     };
                 }
+
+                data.skills = normalizeSkills(data.skills);
 
                 setPersonalInfo(data);
             } catch (error) {

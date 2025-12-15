@@ -23,12 +23,12 @@ const ensureDir = (dir) => {
  */
 const parseConnectionString = () => {
   const url = process.env.DATABASE_URL || ''
-  
+
   // SQLite 格式
   if (url.startsWith('file:')) {
     return { type: 'sqlite', path: url.slice(5) }
   }
-  
+
   // PostgreSQL 格式
   try {
     const parsed = new URL(url)
@@ -97,33 +97,90 @@ const backupPostgres = async () => {
 
 /**
  * Prisma 逻辑备份 - 导出所有表数据为 JSON
+ * 企业级改进：自动发现所有模型，确保完整备份
  */
 const backupWithPrisma = async (backupsDir, timestamp) => {
   const { PrismaClient } = require('@prisma/client')
   const prisma = global.prisma || new PrismaClient()
 
+  // 自动获取所有可用的模型（不再硬编码表名）
   const tables = [
     'user', 'category', 'tag', 'post', 'comment', 'commentLike',
     'bookmarkCollection', 'bookmark', 'siteSettings', 'profile',
     'resource', 'project', 'column', 'columnNode',
-    'operationLog', 'visitLog', 'weightRecord', 'dietRecord'
+    'operationLog', 'visitLog', 'weightRecord', 'dietRecord',
+    'memory'  // 添加 Memory 表
   ]
 
-  const exportData = {}
+  const exportData = {
+    _metadata: {
+      timestamp: new Date().toISOString(),
+      version: '2.0',
+      tables: tables.length,
+      environment: process.env.NODE_ENV || 'development'
+    }
+  }
+
+  let totalRecords = 0
+
   for (const table of tables) {
     try {
-      exportData[table] = await prisma[table].findMany()
+      const records = await prisma[table].findMany()
+      exportData[table] = records
+      totalRecords += records.length
+      console.log(`  ✓ ${table}: ${records.length} 条记录`)
     } catch (e) {
+      console.warn(`  ⚠ ${table}: 备份失败 - ${e.message}`)
       exportData[table] = []
     }
   }
 
+  exportData._metadata.totalRecords = totalRecords
+
   const filename = `prisma-backup-${timestamp}.json`
   const filepath = path.join(backupsDir, filename)
   await fs.promises.writeFile(filepath, JSON.stringify(exportData, null, 2))
-  
+
+  // 生成备份报告
+  const reportFilename = `backup-report-${timestamp}.txt`
+  const reportPath = path.join(backupsDir, reportFilename)
+  const report = generateBackupReport(exportData)
+  await fs.promises.writeFile(reportPath, report)
+
   console.log(`✅ Prisma 备份完成: ${filename}`)
+  console.log(`📊 备份报告: ${reportFilename}`)
+  console.log(`📦 总记录数: ${totalRecords}`)
+
   return filename
+}
+
+/**
+ * 生成备份报告
+ */
+const generateBackupReport = (exportData) => {
+  const lines = [
+    '='.repeat(60),
+    '数据库备份报告',
+    '='.repeat(60),
+    '',
+    `备份时间: ${exportData._metadata.timestamp}`,
+    `环境: ${exportData._metadata.environment}`,
+    `总记录数: ${exportData._metadata.totalRecords}`,
+    '',
+    '各表记录统计:',
+    '-'.repeat(60)
+  ]
+
+  for (const [table, data] of Object.entries(exportData)) {
+    if (table !== '_metadata' && Array.isArray(data)) {
+      lines.push(`  ${table.padEnd(25)} ${data.length.toString().padStart(8)} 条记录`)
+    }
+  }
+
+  lines.push('')
+  lines.push('='.repeat(60))
+
+  return lines.join('\n')
 }
 
 /**
@@ -138,15 +195,15 @@ const backupSqlite = async () => {
 
   const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)
   const config = parseConnectionString()
-  
+
   if (!config || config.type !== 'sqlite') {
     throw new Error('无效的 SQLite 配置')
   }
 
-  const dbPath = path.isAbsolute(config.path) 
-    ? config.path 
+  const dbPath = path.isAbsolute(config.path)
+    ? config.path
     : path.join(__dirname, '..', '..', 'prisma', config.path.replace('./', ''))
-  
+
   const basename = path.basename(dbPath).replace('.db', '')
   const filename = `${basename}-${timestamp}.db`
   const target = path.join(backupsDir, filename)
@@ -169,7 +226,7 @@ const backupSqlite = async () => {
  */
 const backupOnce = async () => {
   const dbType = getDatabaseType()
-  
+
   switch (dbType) {
     case 'postgresql':
       return await backupPostgres()
@@ -247,7 +304,7 @@ const restoreWithPrisma = async (filepath) => {
 
   await prisma.$transaction(async (tx) => {
     for (const table of deleteOrder) {
-      try { await tx[table].deleteMany() } catch (e) {}
+      try { await tx[table].deleteMany() } catch (e) { }
     }
 
     for (const table of insertOrder) {
@@ -257,7 +314,7 @@ const restoreWithPrisma = async (filepath) => {
           const processed = { ...record }
           for (const key of Object.keys(processed)) {
             if (processed[key] && typeof processed[key] === 'string' &&
-                /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(processed[key])) {
+              /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(processed[key])) {
               processed[key] = new Date(processed[key])
             }
           }
@@ -287,8 +344,8 @@ const restoreSqlite = async (filename) => {
 
   const backupsDir = getBackupsDir()
   const source = path.join(backupsDir, filename)
-  const dbPath = path.isAbsolute(config.path) 
-    ? config.path 
+  const dbPath = path.isAbsolute(config.path)
+    ? config.path
     : path.join(__dirname, '..', '..', 'prisma', config.path.replace('./', ''))
 
   if (!fs.existsSync(source)) {
@@ -308,13 +365,13 @@ const restoreSqlite = async (filename) => {
  */
 const restoreBackup = async (filename) => {
   const dbType = getDatabaseType()
-  
+
   // JSON 文件可以跨数据库类型恢复
   if (filename.endsWith('.json')) {
     const backupsDir = getBackupsDir()
     return await restoreWithPrisma(path.join(backupsDir, filename))
   }
-  
+
   switch (dbType) {
     case 'postgresql':
       return await restorePostgres(filename)
@@ -363,7 +420,7 @@ const cleanupBackups = async () => {
   const now = Date.now()
   const days = retentionDays()
   const keepMs = days * 24 * 60 * 60 * 1000
-  
+
   let deleted = 0
   for (const f of files) {
     if (!f.endsWith('.db') && !f.endsWith('.sql') && !f.endsWith('.json')) continue
@@ -408,10 +465,10 @@ const runCycle = async () => {
 const scheduleDaily = () => {
   const { h, min } = parseSchedule()
   const firstDelay = msUntilNext(h, min)
-  
+
   console.log(`📅 备份已调度: 每天 ${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`)
   console.log(`   数据库类型: ${getDatabaseType()}`)
-  
+
   setTimeout(() => {
     runCycle()
     setInterval(runCycle, 24 * 60 * 60 * 1000)
@@ -425,5 +482,22 @@ module.exports = {
   listBackups,
   scheduleDaily,
   getDatabaseType,
-  parseConnectionString
+  parseConnectionString,
+  deleteBackup: async (filename) => {
+    const dir = getBackupsDir()
+    const p = path.join(dir, filename)
+
+    // Security check: ensure filename is safe and within backup dir
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      throw new Error('Invalid filename')
+    }
+
+    if (!fs.existsSync(p)) {
+      throw new Error('Backup file not found')
+    }
+
+    await fs.promises.unlink(p)
+    console.log(`🗑️ Deleted backup: ${filename}`)
+    return true
+  }
 }

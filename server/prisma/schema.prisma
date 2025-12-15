@@ -37,6 +37,7 @@ model Post {
   content   String
   published Boolean   @default(false)
   accessLevel String @default("regular") // "regular", "plus", "pro"
+  wordCount Int?     @default(0)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   author    User      @relation(fields: [authorId], references: [id])
@@ -53,6 +54,19 @@ model Post {
   @@index([published])
   @@index([createdAt])
   @@index([accessLevel])
+}
+
+model DailyStat {
+  id        Int      @id @default(autoincrement())
+  date      String   @unique // YYYY-MM-DD
+  pv        Int      @default(0)
+  uv        Int      @default(0)
+  posts     Int      @default(0)
+  comments  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date])
 }
 
 model BookmarkCollection {
@@ -311,4 +325,26 @@ model DietRecord {
 
   @@index([date])
   @@index([timeSlot])
+}
+
+// 回忆/相册管理
+model Memory {
+  id            Int      @id @default(autoincrement())
+  title         String
+  date          DateTime
+  location      String?
+  image         String   // 图片 URL
+  imageData     Bytes?   // 压缩后的图片数据 (WebP)
+  thumbnailData Bytes?   // 缩略图数据 (WebP)
+  mimeType      String?  // 图片 MIME 类型
+  description   String?
+  aspectRatio   String   @default("aspect-[3/4]") // 宽高比类名
+  order         Int      @default(0)
+  published     Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([date])
+  @@index([order])
+  @@index([published])
 }

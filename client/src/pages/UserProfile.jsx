@@ -12,31 +12,32 @@ import {
     LayoutDashboard,
     Bookmark,
     FolderPlus,
-    Trash2
+    Trash2,
+    Pencil
 } from 'lucide-react';
 import api from '../lib/api';
 import Toast from '../components/Toast';
 import { Link } from 'react-router-dom';
+import Select from '../components/Select';
 
-// Sidebar Navigation Item
-const SidebarItem = ({ icon: Icon, label, active, onClick }) => (
+const AccountNavItem = ({ icon: Icon, label, active, onClick }) => (
     <button
+        type="button"
         onClick={onClick}
-        className={`w-full flex items-center gap-4 px-6 py-3 rounded-r-full text-sm font-medium transition-colors mb-1
-            ${active 
-                ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' 
-                : 'text-muted-foreground hover:bg-gray-100 dark:hover:bg-gray-800'
+        className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${active
+            ? 'bg-secondary text-foreground font-medium'
+            : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
             }`}
     >
-        <Icon size={20} />
-        <span>{label}</span>
+        <Icon size={16} />
+        <span className="truncate">{label}</span>
     </button>
 );
 
 // Content Section Wrapper
 const Section = ({ title, subtitle, children }) => (
     <div className="max-w-3xl mx-auto animate-in fade-in duration-500">
-        <div className="mb-8 text-center md:text-left">
+        <div className="mb-6 text-center md:text-left">
             <h2 className="text-2xl md:text-3xl font-normal text-foreground mb-2">{title}</h2>
             {subtitle && <p className="text-muted-foreground">{subtitle}</p>}
         </div>
@@ -328,7 +329,11 @@ const FavoritesTab = () => {
     const [loading, setLoading] = useState(false);
     const [bookmarksLoading, setBookmarksLoading] = useState(false);
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editingCollection, setEditingCollection] = useState(null);
     const [newCollectionName, setNewCollectionName] = useState('');
+    const [editCollectionName, setEditCollectionName] = useState('');
+    const [editCollectionDescription, setEditCollectionDescription] = useState('');
     const [toast, setToast] = useState(null);
 
     // Fetch collections
@@ -350,7 +355,7 @@ const FavoritesTab = () => {
         if (!collectionId) return;
         setBookmarksLoading(true);
         try {
-            const res = await api.get(`/bookmarks?collectionId=${collectionId}`);
+            const res = await api.get('/bookmarks', { params: { collectionId } });
             setBookmarks(res.data.data);
         } catch (err) {
             console.error('Failed to fetch bookmarks', err);
@@ -383,6 +388,30 @@ const FavoritesTab = () => {
         }
     };
 
+    const openEditCollection = (collection) => {
+        setEditingCollection(collection);
+        setEditCollectionName(collection?.name || '');
+        setEditCollectionDescription(collection?.description || '');
+        setShowEditModal(true);
+    };
+
+    const handleUpdateCollection = async () => {
+        if (!editingCollection) return;
+        if (!editCollectionName.trim()) return;
+        try {
+            await api.put(`/bookmarks/collections/${editingCollection.id}`, {
+                name: editCollectionName.trim(),
+                description: editCollectionDescription?.trim() || null
+            });
+            setShowEditModal(false);
+            setEditingCollection(null);
+            await fetchCollections();
+            setToast({ message: '更新成功', type: 'success' });
+        } catch (err) {
+            setToast({ message: err.response?.data?.message || '更新失败', type: 'error' });
+        }
+    };
+
     const handleDeleteCollection = async (id) => {
         if (!window.confirm('确定要删除这个收藏夹吗？其中的收藏将被移除。')) return;
         try {
@@ -408,11 +437,25 @@ const FavoritesTab = () => {
         }
     };
 
+    const handleMoveBookmark = async (bookmarkId, targetCollectionId) => {
+        try {
+            await api.put(`/bookmarks/${bookmarkId}`, { collectionId: targetCollectionId });
+            // moved away from current collection => refresh list
+            if (selectedCollection?.id) {
+                fetchBookmarks(selectedCollection.id);
+            }
+            fetchCollections();
+            setToast({ message: '已移动收藏', type: 'success' });
+        } catch (err) {
+            setToast({ message: err.response?.data?.message || '移动失败', type: 'error' });
+        }
+    };
+
     return (
         <Section title="我的收藏" subtitle="管理您的收藏文章">
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             
-            <div className="flex flex-col md:flex-row gap-6 h-[600px]">
+            <div className="flex flex-col md:flex-row gap-6 min-h-[560px]">
                 {/* Collections Sidebar */}
                 <div className="w-full md:w-64 shrink-0 bg-card border border-border rounded-xl overflow-hidden flex flex-col">
                     <div className="p-4 border-b border-border flex justify-between items-center bg-muted/30">
@@ -440,6 +483,16 @@ const FavoritesTab = () => {
                                 <span className="truncate">{collection.name}</span>
                                 <div className="flex items-center gap-2">
                                     <span className="text-xs opacity-60">{collection._count?.bookmarks || 0}</span>
+                                    <div
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            openEditCollection(collection);
+                                        }}
+                                        className="opacity-0 group-hover:opacity-100 p-1 hover:text-primary transition-opacity"
+                                        title="编辑收藏夹"
+                                    >
+                                        <Pencil size={14} />
+                                    </div>
                                     {!collection.isDefault && (
                                         <div 
                                             onClick={(e) => {
@@ -486,6 +539,22 @@ const FavoritesTab = () => {
                                                 <span>•</span>
                                                 <span>{new Date(bookmark.createdAt).toLocaleDateString()}</span>
                                             </div>
+
+                                            {collections.length > 1 && (
+                                                <div className="mt-2 flex items-center gap-2">
+                                                    <span className="text-xs text-muted-foreground shrink-0">移动到</span>
+                                                    <div className="w-44">
+                                                        <Select
+                                                            options={collections.map(c => ({ value: c.id, label: c.name }))}
+                                                            value={bookmark.collection?.id}
+                                                            onChange={(val) => {
+                                                                if (val === bookmark.collection?.id) return;
+                                                                handleMoveBookmark(bookmark.id, val);
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                         <button 
                                             onClick={() => handleRemoveBookmark(bookmark.id)}
@@ -544,6 +613,61 @@ const FavoritesTab = () => {
                     </div>
                 )}
             </AnimatePresence>
+
+            {/* Edit Collection Modal */}
+            <AnimatePresence>
+                {showEditModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="bg-card w-full max-w-sm rounded-xl shadow-lg border border-border p-6"
+                        >
+                            <h3 className="text-lg font-medium mb-4">编辑收藏夹</h3>
+                            <div className="space-y-3">
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">名称</label>
+                                    <input
+                                        type="text"
+                                        value={editCollectionName}
+                                        onChange={(e) => setEditCollectionName(e.target.value)}
+                                        className="w-full px-3 py-2 rounded-md border border-input bg-background"
+                                        placeholder="收藏夹名称"
+                                        autoFocus
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">描述（可选）</label>
+                                    <textarea
+                                        value={editCollectionDescription}
+                                        onChange={(e) => setEditCollectionDescription(e.target.value)}
+                                        className="w-full px-3 py-2 rounded-md border border-input bg-background min-h-[88px]"
+                                        placeholder="简单写点用途说明"
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-3 mt-5">
+                                <button
+                                    onClick={() => {
+                                        setShowEditModal(false);
+                                        setEditingCollection(null);
+                                    }}
+                                    className="px-4 py-2 text-sm font-medium hover:bg-muted rounded-md"
+                                >
+                                    取消
+                                </button>
+                                <button
+                                    onClick={handleUpdateCollection}
+                                    className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+                                >
+                                    保存
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </Section>
     );
 };
@@ -554,11 +678,22 @@ export const UserProfile = () => {
     const [activeTab, setActiveTab] = useState('home');
     const navigate = useNavigate();
 
+    const upsertLocalUser = (partial) => {
+        try {
+            const raw = localStorage.getItem('user');
+            const existing = raw ? JSON.parse(raw) : {};
+            localStorage.setItem('user', JSON.stringify({ ...existing, ...partial }));
+        } catch {
+            // ignore
+        }
+    };
+
     useEffect(() => {
         const fetchUser = async () => {
             try {
                 const res = await api.get('/auth/me');
                 setUser(res.data);
+                upsertLocalUser(res.data);
             } catch (err) {
                 console.error('Failed to fetch user info', err);
                 if (err.response && (err.response.status === 401 || err.response.status === 404)) {
@@ -591,27 +726,77 @@ export const UserProfile = () => {
     if (!user) return null;
 
     return (
-        <div className="flex flex-col md:flex-row min-h-[calc(100vh-64px)] max-w-6xl mx-auto">
-            {/* Sidebar */}
-            <aside className="w-full md:w-72 py-6 px-2 md:px-6 shrink-0 md:border-r border-border/50">
-                <div className="mb-8 px-6 hidden md:block">
-                     <h1 className="text-2xl font-normal text-foreground">个人中心</h1>
-                </div>
-                <nav className="space-y-1">
-                    <SidebarItem icon={Home} label="首页" active={activeTab === 'home'} onClick={() => setActiveTab('home')} />
-                    <SidebarItem icon={User} label="个人信息" active={activeTab === 'personal'} onClick={() => setActiveTab('personal')} />
-                    <SidebarItem icon={Bookmark} label="我的收藏" active={activeTab === 'favorites'} onClick={() => setActiveTab('favorites')} />
-                    <SidebarItem icon={Shield} label="安全性" active={activeTab === 'security'} onClick={() => setActiveTab('security')} />
-                </nav>
-            </aside>
+        <div className="max-w-6xl mx-auto">
+            <div className="bg-background border border-border rounded-xl overflow-hidden min-h-[70vh] grid lg:grid-cols-[240px_1fr]">
+                {/* Sidebar */}
+                <aside className="border-b lg:border-b-0 lg:border-r border-border bg-background">
+                    <div className="h-14 px-4 flex items-center justify-between border-b border-border">
+                        <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center border border-border overflow-hidden">
+                                {user.avatar ? (
+                                    <img src={user.avatar} alt={user.nickname || user.username} className="w-full h-full object-cover" />
+                                ) : (
+                                    <User size={16} />
+                                )}
+                            </div>
+                            <div className="min-w-0">
+                                <div className="text-sm font-medium truncate">{user.nickname || user.username}</div>
+                                <div className="text-xs text-muted-foreground truncate">{user.membershipType || 'regular'}</div>
+                            </div>
+                        </div>
+                        {user.role === 'admin' && (
+                            <button
+                                onClick={() => navigate('/dashboard')}
+                                className="text-xs px-2 py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/15 border border-primary/20"
+                                title="进入后台"
+                            >
+                                <LayoutDashboard size={14} />
+                            </button>
+                        )}
+                    </div>
 
-            {/* Content */}
-            <main className="flex-1 p-4 md:p-12 overflow-y-auto">
-                 {activeTab === 'home' && <HomeTab user={user} onChangeTab={setActiveTab} navigate={navigate} />}
-                 {activeTab === 'personal' && <PersonalInfoTab user={user} onUpdateUser={setUser} />}
-                 {activeTab === 'favorites' && <FavoritesTab />}
-                 {activeTab === 'security' && <SecurityTab onLogout={handleLogout} />}
-            </main>
+                    <nav className="p-3 space-y-1">
+                        <div className="px-2 pt-1 pb-2 text-xs font-medium text-muted-foreground">账户</div>
+                        <AccountNavItem icon={Home} label="概览" active={activeTab === 'home'} onClick={() => setActiveTab('home')} />
+                        <AccountNavItem icon={User} label="个人资料" active={activeTab === 'personal'} onClick={() => setActiveTab('personal')} />
+                        <AccountNavItem icon={Bookmark} label="收藏管理" active={activeTab === 'favorites'} onClick={() => setActiveTab('favorites')} />
+                        <AccountNavItem icon={Shield} label="安全" active={activeTab === 'security'} onClick={() => setActiveTab('security')} />
+                    </nav>
+                </aside>
+
+                {/* Content */}
+                <div className="min-w-0 flex flex-col">
+                    <header className="h-14 border-b border-border bg-background/60 backdrop-blur-md px-4 flex items-center justify-between">
+                        <div className="min-w-0">
+                            <div className="text-sm font-medium truncate">个人中心</div>
+                            <div className="text-xs text-muted-foreground truncate">{activeTab === 'home' ? 'Overview' : activeTab === 'personal' ? 'Profile' : activeTab === 'favorites' ? 'Bookmarks' : 'Security'}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handleLogout}
+                                className="text-sm px-3 py-1.5 rounded-md border border-border hover:bg-muted text-muted-foreground hover:text-foreground"
+                            >
+                                退出
+                            </button>
+                        </div>
+                    </header>
+
+                    <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+                        {activeTab === 'home' && <HomeTab user={user} onChangeTab={setActiveTab} navigate={navigate} />}
+                        {activeTab === 'personal' && (
+                            <PersonalInfoTab
+                                user={user}
+                                onUpdateUser={(u) => {
+                                    setUser(u);
+                                    upsertLocalUser(u);
+                                }}
+                            />
+                        )}
+                        {activeTab === 'favorites' && <FavoritesTab />}
+                        {activeTab === 'security' && <SecurityTab onLogout={handleLogout} />}
+                    </main>
+                </div>
+            </div>
         </div>
     );
 };

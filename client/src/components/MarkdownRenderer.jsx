@@ -13,7 +13,6 @@ import { twMerge } from 'tailwind-merge';
 import { Check, Copy, Hash, Info, AlertTriangle, AlertCircle, CheckCircle, Lightbulb, Terminal } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Mermaid from './Mermaid';
-import MindMap from './MindMap';
 import Quiz from './Quiz';
 
 const fontSettings = {
@@ -269,11 +268,6 @@ const CodeBlock = ({ language, children, ...props }) => {
 
   if (language === 'mermaid') {
     return <Mermaid chart={String(children)} />;
-  }
-
-  // 思维导图渲染
-  if (language === 'mindmap') {
-    return <MindMap data={String(children).trim()} readOnly={true} />;
   }
 
   // 选择题渲染
@@ -535,6 +529,46 @@ const AnnotationSpan = ({ explanation, className, children, ...props }) => {
   );
 };
 
+// 可折叠块组件
+const DetailsBlock = ({ open, children, ...props }) => {
+  const [isOpen, setIsOpen] = useState(open === '' || open === 'open' || open === true);
+  const summaryChild = React.Children.toArray(children).find(
+    child => React.isValidElement(child) && child.type === 'summary'
+  );
+  const contentChildren = React.Children.toArray(children).filter(
+    child => !(React.isValidElement(child) && child.type === 'summary')
+  );
+  const summaryText = summaryChild?.props?.children || '点击展开';
+
+  return (
+    <div className="my-4 border border-border rounded-lg overflow-hidden bg-card/50">
+      <div 
+        className="flex items-center gap-2 px-4 py-3 bg-muted/30 cursor-pointer select-none hover:bg-muted/50 transition-colors"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <span 
+          className="text-muted-foreground transition-transform duration-200"
+          style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </span>
+        <span className="flex-1 font-medium text-foreground">{summaryText}</span>
+      </div>
+      <div 
+        className={`overflow-hidden transition-all duration-200 ${
+          isOpen ? 'max-h-[5000px] opacity-100' : 'max-h-0 opacity-0'
+        }`}
+      >
+        <div className="px-4 py-3 border-t border-border/50">
+          {contentChildren}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const MarkdownRenderer = ({ content: _content, className }) => {
   // Ensure content is a string
   const content = typeof _content === 'string' 
@@ -580,6 +614,13 @@ const MarkdownRenderer = ({ content: _content, className }) => {
         remarkPlugins={[remarkGfm, remarkMath, remarkDirective, remarkSpoiler, remarkCallout]}
         rehypePlugins={[rehypeKatex, rehypeRaw]}
         components={{
+          details({ node, open, children, ...props }) {
+            return <DetailsBlock open={open} {...props}>{children}</DetailsBlock>;
+          },
+          summary({ node, children, ...props }) {
+            // summary 在 DetailsBlock 内部处理，这里返回原生元素
+            return <summary {...props}>{children}</summary>;
+          },
           div({ node, className, children, ...props }) {
             if (className?.includes('callout')) {
               return <CalloutBlock className={className} {...props}>{children}</CalloutBlock>

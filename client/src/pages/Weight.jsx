@@ -118,7 +118,7 @@ const Weight = () => {
 
                 <div className="h-[400px] w-full">
                     {filteredData.length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             <LineChart
                                 data={filteredData}
                                 margin={{

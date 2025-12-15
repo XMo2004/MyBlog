@@ -88,6 +88,57 @@
       opacity: 1
     }
   }
+
+  @keyframes slide-in-right {
+    from {
+      transform: translateX(20px);
+      opacity: 0
+    }
+
+    to {
+      transform: translateX(0);
+      opacity: 1
+    }
+  }
+
+  @keyframes slide-in-left {
+    from {
+      transform: translateX(-20px);
+      opacity: 0
+    }
+
+    to {
+      transform: translateX(0);
+      opacity: 1
+    }
+  }
+
+  @keyframes scale-in {
+    from {
+      transform: scale(0.95);
+      opacity: 0
+    }
+
+    to {
+      transform: scale(1);
+      opacity: 1
+    }
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% {
+      box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7)
+    }
+
+    50% {
+      box-shadow: 0 0 0 10px rgba(59, 130, 246, 0)
+    }
+  }
+
+  --animate-slide-in-right: slideInRight 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  --animate-slide-in-left: slideInLeft 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  --animate-scale-in: scaleIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  --animate-pulse-glow: pulseGlow 2s infinite;
 }
 
 @layer base {
@@ -292,22 +343,6 @@
   padding: 0 2px;
 }
 
-/* MindMap Styles */
-.mindmap-container {
-  background: 
-    radial-gradient(circle at 50% 50%, hsl(var(--primary) / 0.03) 0%, transparent 50%),
-    linear-gradient(90deg, hsl(var(--border) / 0.1) 1px, transparent 1px),
-    linear-gradient(180deg, hsl(var(--border) / 0.1) 1px, transparent 1px);
-  background-size: 100% 100%, 20px 20px, 20px 20px;
-}
-
-.mindmap-container .latex-content {
-  display: inline;
-}
-
-.mindmap-container .latex-content .katex {
-  font-size: 0.9em;
-}
 
 /* Quiz Styles */
 .quiz-option-enter {
@@ -328,4 +363,189 @@
 .quiz-option-exit-active {
   opacity: 0;
   transition: opacity 0.15s ease-in;
+}
+
+/* Code Block Editor Styles */
+.code-block-wrapper {
+  position: relative;
+}
+
+.code-block-wrapper pre {
+  background: hsl(var(--muted) / 0.3);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  font-family: 'JetBrains Mono', monospace;
+  margin: 0;
+}
+
+.code-block-wrapper code {
+  background: none;
+  color: inherit;
+  padding: 0;
+  font-size: 0.875rem;
+}
+
+/* Editor Content Styles */
+.ProseMirror {
+  outline: none;
+  min-height: 150px;
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+  color: hsl(var(--muted-foreground));
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Improve general typography in editor */
+.ProseMirror h1 {
+  font-size: 2em;
+  font-weight: 700;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  line-height: 1.2;
+}
+
+.ProseMirror h2 {
+  font-size: 1.5em;
+  font-weight: 600;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+}
+
+.ProseMirror h3 {
+  font-size: 1.25em;
+  font-weight: 600;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+}
+
+.ProseMirror ul, .ProseMirror ol {
+  padding-left: 1.5em;
+}
+
+.ProseMirror blockquote {
+  border-left: 3px solid hsl(var(--primary));
+  padding-left: 1rem;
+  margin-left: 0;
+  font-style: italic;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Math formula styles */
+.ProseMirror .inline-math-node {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  margin: 0 0.1rem;
+  border-radius: 0.25rem;
+  transition: all 0.15s ease;
+  vertical-align: baseline;
+  line-height: 1.8;
+}
+
+.ProseMirror .inline-math-node:hover {
+  background: hsl(var(--accent) / 0.3);
+}
+
+.ProseMirror .inline-math-editor {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: baseline;
+}
+
+.ProseMirror .block-math-node {
+  display: block;
+  margin: 1.5rem 0;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.ProseMirror .block-math-node:hover {
+  background: hsl(var(--accent) / 0.2);
+}
+
+.ProseMirror .block-math-editor {
+  margin: 1rem 0;
+}
+
+/* KaTeX styling adjustments */
+.ProseMirror .katex {
+  font-size: 1.1em;
+  vertical-align: middle;
+  position: relative;
+  top: -0.1em;
+}
+
+.ProseMirror .inline-math-node .katex {
+  vertical-align: middle;
+  position: relative;
+  top: -0.05em;
+}
+
+.ProseMirror .block-math-node .katex {
+  font-size: 1.2em;
+}
+
+.ProseMirror .katex-display {
+  margin: 0 !important;
+  padding: 0;
+}
+
+/* Paragraph with inline math - increase line height */
+.ProseMirror p:has(.inline-math-node),
+.ProseMirror p:has(.katex) {
+  line-height: 2;
+}
+
+/* MarkdownRenderer KaTeX styles */
+.prose .katex {
+  font-size: 1.1em;
+  vertical-align: middle;
+  position: relative;
+  top: -0.05em;
+}
+
+.prose .katex-display {
+  margin: 1.5rem 0 !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.prose p:has(.katex:not(.katex-display *)) {
+  line-height: 2;
+}
+
+.prose .katex-html {
+  vertical-align: middle;
+}
+
+/* KaTeX aligned environment - extra line height for multi-line equations */
+.ProseMirror .block-math-node:has(.katex .amsalign),
+.ProseMirror .block-math-node:has(.katex .eqn-num),
+.ProseMirror .block-math-node:has(.katex .mtable) {
+  line-height: 2.5;
+}
+
+.prose .katex-display:has(.amsalign),
+.prose .katex-display:has(.eqn-num),
+.prose .katex-display:has(.mtable) {
+  margin: 2rem 0 !important;
+  line-height: 2.5;
+}
+
+/* Ensure aligned environments have proper spacing */
+.katex .amsalign,
+.katex .mtable {
+  margin: 0.5em 0;
+}
+
+.katex .amsalign .vlist-t,
+.katex .mtable .vlist-t {
+  line-height: 2.2;
 }

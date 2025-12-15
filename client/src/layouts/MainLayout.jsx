@@ -34,6 +34,7 @@ const navItems = [
         icon: UserCircle,
         submenu: [
             { label: '我的项目', path: '/projects' },
+            { label: '我的回忆', path: '/memories' },
             { label: '体重管理', path: '/weight' },
             { label: '关于我', path: '/about' },
         ]

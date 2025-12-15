@@ -31,6 +31,28 @@ exports.updateProfile = async (req, res) => {
     try {
         const payload = req.body || {};
 
+        const normalizeSkills = (value) => {
+            let skillsArray = [];
+            if (typeof value === 'string') {
+                try {
+                    const parsed = JSON.parse(value);
+                    skillsArray = Array.isArray(parsed) ? parsed : [];
+                } catch (err) {
+                    skillsArray = [];
+                }
+            } else if (Array.isArray(value)) {
+                skillsArray = value;
+            }
+
+            return skillsArray
+                .map((item) => {
+                    if (typeof item === 'string') return item;
+                    if (item && typeof item === 'object' && item.name) return item.name;
+                    return '';
+                })
+                .filter(Boolean);
+        };
+
         const data = {
             name: payload.name || '',
             title: payload.title || '',
@@ -41,7 +63,7 @@ exports.updateProfile = async (req, res) => {
             github: payload.github || null,
             twitter: payload.twitter || null,
             linkedin: payload.linkedin || null,
-            skills: typeof payload.skills === 'string' ? payload.skills : JSON.stringify(Array.isArray(payload.skills) ? payload.skills : []),
+            skills: JSON.stringify(normalizeSkills(payload.skills)),
             interests: typeof payload.interests === 'string' ? payload.interests : JSON.stringify(Array.isArray(payload.interests) ? payload.interests : []),
             experience: typeof payload.experience === 'string' ? payload.experience : JSON.stringify(Array.isArray(payload.experience) ? payload.experience : []),
             education: typeof payload.education === 'string' ? payload.education : JSON.stringify(Array.isArray(payload.education) ? payload.education : []),

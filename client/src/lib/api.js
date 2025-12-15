@@ -74,13 +74,14 @@ export const columnsApi = {
 
 
 export const adminApi = {
-    getStats: () => api.get('/admin/stats'),
+    getStats: () => api.get('/admin/dashboard-stats'),
     getHealth: () => api.get('/admin/health'),
     listBackups: () => api.get('/admin/backups'),
     backup: () => api.post('/admin/backup'),
     restore: (file) => api.post('/admin/restore', { file }),
-    logs: (params) => api.get('/admin/logs', { params }),
-    exportLogs: (params) => api.get('/admin/logs/export', { params, responseType: 'blob' }),
+    deleteBackup: (filename) => api.delete(`/admin/backup/${filename}`),
+    logs: (params) => api.get('/admin/audit-logs', { params }),
+    exportLogs: (params) => api.get('/admin/audit-logs/export', { params, responseType: 'blob' }),
     me: () => api.get('/admin/me'),
     updateMe: (data) => api.put('/admin/me', data),
     listUsers: (params) => api.get('/admin/users', { params }),
@@ -89,6 +90,9 @@ export const adminApi = {
     batchUpdateRole: (ids, role) => api.post('/admin/users/batch-role', { ids, role }),
     updateUserPassword: (id, newPassword) => api.put(`/admin/users/${id}/password`, { newPassword }),
     deleteUser: (id) => api.delete(`/admin/users/${id}`),
+    // Migration 管理
+    getMigrationHistory: () => api.get('/admin/migration/history'),
+    createMigrationBackup: () => api.post('/admin/migration/backup'),
 };
 
 
@@ -137,6 +141,29 @@ export const commentsApi = {
     getStats: () => api.get('/comments/admin/stats'),
     delete: (id) => api.delete(`/comments/admin/${id}`),
     bulkDelete: (ids) => api.post('/comments/admin/bulk-delete', { ids }),
+};
+
+export const memoriesApi = {
+    // 公开接口
+    getAll: () => api.get('/memories'),
+    getById: (id) => api.get(`/memories/${id}`),
+    // 管理员接口
+    getAllAdmin: () => api.get('/memories/admin/all'),
+    create: (data) => {
+        const isFormData = data instanceof FormData;
+        return api.post('/memories', data, {
+            headers: isFormData ? { 'Content-Type': 'multipart/form-data' } : undefined
+        });
+    },
+    update: (id, data) => {
+        const isFormData = data instanceof FormData;
+        return api.put(`/memories/${id}`, data, {
+            headers: isFormData ? { 'Content-Type': 'multipart/form-data' } : undefined
+        });
+    },
+    updateOrder: (orders) => api.put('/memories/order', { orders }),
+    delete: (id) => api.delete(`/memories/${id}`),
+    bulkDelete: (ids) => api.delete('/memories/bulk', { data: { ids } }),
 };
 
 export default api;

@@ -16,7 +16,8 @@ import {
     MessageSquare,
     BarChart3,
     Tags,
-    Users
+    Users,
+    Camera
 } from 'lucide-react';
 import { ThemeToggle } from '../components/ThemeToggle';
 import useTheme from '../components/useTheme';
@@ -141,6 +142,12 @@ export const AdminLayout = () => {
                                 label="专栏"
                                 path="/dashboard/columns"
                                 isActive={location.pathname.includes('/dashboard/columns')}
+                            />
+                            <SidebarItem
+                                icon={Camera}
+                                label="回忆"
+                                path="/dashboard/memories"
+                                isActive={location.pathname === '/dashboard/memories'}
                             />
                         </div>
 

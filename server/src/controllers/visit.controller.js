@@ -27,110 +27,140 @@ exports.getAnalytics = async (req, res) => {
     try {
         const { days = 30 } = req.query;
         const daysNum = parseInt(days);
-        
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - daysNum);
-        startDate.setHours(0, 0, 0, 0);
+
+        const toLocalYMD = (date) => {
+            const d = new Date(date);
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        };
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);
+        const dateKeyToday = toLocalYMD(today);
 
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
+        // 1. Trend Data (PV/UV) - Direct query from VisitLog for real-time accuracy
+        const startDate = new Date(today);
+        startDate.setDate(startDate.getDate() - (daysNum - 1));
 
-        const weekAgo = new Date(today);
-        weekAgo.setDate(weekAgo.getDate() - 7);
-
-        // 获取所有访问记录
+        // Fetch all visits from the period
         const visits = await prisma.visitLog.findMany({
             where: {
                 createdAt: { gte: startDate }
             },
             select: {
+                createdAt: true,
                 ip: true,
                 path: true,
-                userAgent: true,
-                createdAt: true
+                userAgent: true
             }
         });
 
-        // 今日数据
-        const todayVisits = visits.filter(v => new Date(v.createdAt) >= today);
-        const todayPV = todayVisits.length;
-        const todayUV = new Set(todayVisits.map(v => v.ip)).size;
-
-        // 昨日数据
-        const yesterdayVisits = visits.filter(v => {
-            const d = new Date(v.createdAt);
-            return d >= yesterday && d < today;
-        });
-        const yesterdayPV = yesterdayVisits.length;
-        const yesterdayUV = new Set(yesterdayVisits.map(v => v.ip)).size;
-
-        // 本周数据
-        const weekVisits = visits.filter(v => new Date(v.createdAt) >= weekAgo);
-        const weekPV = weekVisits.length;
-        const weekUV = new Set(weekVisits.map(v => v.ip)).size;
-
-        // 总计
-        const totalPV = visits.length;
-        const totalUV = new Set(visits.map(v => v.ip)).size;
-
-        // 按天统计趋势
+        // Build trend map
         const trendMap = new Map();
         for (let i = daysNum - 1; i >= 0; i--) {
             const d = new Date(today);
             d.setDate(d.getDate() - i);
-            const dateKey = d.toISOString().split('T')[0];
-            trendMap.set(dateKey, { date: dateKey, pv: 0, uv: new Set() });
+            const k = toLocalYMD(d);
+            trendMap.set(k, { date: k, pv: 0, uv: new Set() });
         }
 
+        // Aggregate visits by local date
         visits.forEach(v => {
-            const dateKey = new Date(v.createdAt).toISOString().split('T')[0];
-            if (trendMap.has(dateKey)) {
-                const entry = trendMap.get(dateKey);
+            const k = toLocalYMD(v.createdAt);
+            if (trendMap.has(k)) {
+                const entry = trendMap.get(k);
                 entry.pv++;
                 if (v.ip) entry.uv.add(v.ip);
             }
         });
 
+        // Convert Sets to counts
         const trendData = Array.from(trendMap.values()).map(item => ({
             date: item.date,
             pv: item.pv,
             uv: item.uv.size
         }));
 
-        // 热门页面
-        const pathCountMap = new Map();
-        visits.forEach(v => {
-            const path = v.path || '/';
-            pathCountMap.set(path, (pathCountMap.get(path) || 0) + 1);
-        });
-        const topPages = Array.from(pathCountMap.entries())
-            .map(([path, count]) => ({ path, count }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 10);
+        // Today's stats
+        const todayEntry = trendData.find(t => t.date === dateKeyToday) || { pv: 0, uv: 0 };
+        const todayPV = todayEntry.pv;
+        const todayUV = todayEntry.uv;
 
-        // 按小时分布（最近7天）
+        // 4. Summaries
+        // Yesterday
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayKey = toLocalYMD(yesterday);
+        const yesterdayStat = trendMap.get(yesterdayKey) || { pv: 0, uv: 0 };
+        const yesterdayPV = yesterdayStat.pv;
+        const yesterdayUV = yesterdayStat.uv;
+
+        // Week (Last 7 days inc today)
+        const weekData = trendData.slice(-7);
+        const weekPV = weekData.reduce((acc, cur) => acc + cur.pv, 0);
+        const weekUV = weekData.reduce((acc, cur) => acc + cur.uv, 0); // Note: Simple sum of daily UVs
+
+        // Total (Period)
+        const totalPV = trendData.reduce((acc, cur) => acc + cur.pv, 0);
+        const totalUV = trendData.reduce((acc, cur) => acc + cur.uv, 0);
+
+        // 5. Details (Top Pages, Devices, etc.) - Still need specific logs
+        // For performance, we might limit this analysis to "recent 7 days" or "today" if 30 days is too much?
+        // Or if we must analyze 30 days, we query VisitLogs for 30 days.
+        // Let's optimize: 'topPages' using groupBy.
+
+        // This query might be heavy if million rows.
+        const pageStats = await prisma.visitLog.groupBy({
+            by: ['path'],
+            where: { createdAt: { gte: startDate } },
+            _count: { path: true },
+            orderBy: { _count: { path: 'desc' } },
+            take: 10
+        });
+
+        const topPages = pageStats.map(p => ({
+            path: p.path,
+            count: p._count.path
+        }));
+
+        // Device/Browser/Hourly - We need the logs. 
+        // Strategy: If days > 7, maybe only analyze last 7 days for these detailed charts? 
+        // Or fetch all but select minimal fields.
+        // Let's fetch last 7 days for detailed breakdown to be fast.
+        const detailStartDate = new Date(today);
+        detailStartDate.setDate(detailStartDate.getDate() - 7);
+
+        const recentVisits = await prisma.visitLog.findMany({
+            where: { createdAt: { gte: detailStartDate } },
+            select: { userAgent: true, createdAt: true }
+        });
+
+        // Hourly
         const hourlyDistribution = new Array(24).fill(0);
-        weekVisits.forEach(v => {
-            const hour = new Date(v.createdAt).getHours();
-            hourlyDistribution[hour]++;
+        recentVisits.forEach(v => {
+            const h = new Date(v.createdAt).getHours();
+            hourlyDistribution[h]++;
         });
 
-        // 设备分析（简单解析userAgent）
+        // Device & Browser
         const deviceMap = { desktop: 0, mobile: 0, tablet: 0, other: 0 };
-        visits.forEach(v => {
+        const browserMap = new Map();
+
+        recentVisits.forEach(v => {
             const ua = (v.userAgent || '').toLowerCase();
-            if (/mobile|android|iphone|ipod/.test(ua) && !/ipad|tablet/.test(ua)) {
-                deviceMap.mobile++;
-            } else if (/ipad|tablet/.test(ua)) {
-                deviceMap.tablet++;
-            } else if (/windows|macintosh|linux/.test(ua)) {
-                deviceMap.desktop++;
-            } else {
-                deviceMap.other++;
-            }
+            // Device
+            if (/mobile|android|iphone|ipod/.test(ua) && !/ipad|tablet/.test(ua)) deviceMap.mobile++;
+            else if (/ipad|tablet/.test(ua)) deviceMap.tablet++;
+            else if (/windows|macintosh|linux/.test(ua)) deviceMap.desktop++;
+            else deviceMap.other++;
+
+            // Browser
+            let browser = '其他';
+            if (ua.includes('edg/')) browser = 'Edge';
+            else if (ua.includes('chrome')) browser = 'Chrome';
+            else if (ua.includes('firefox')) browser = 'Firefox';
+            else if (ua.includes('safari') && !ua.includes('chrome')) browser = 'Safari';
+            else if (ua.includes('opera') || ua.includes('opr')) browser = 'Opera';
+            browserMap.set(browser, (browserMap.get(browser) || 0) + 1);
         });
 
         const deviceData = [
@@ -140,18 +170,6 @@ exports.getAnalytics = async (req, res) => {
             { name: '其他', value: deviceMap.other }
         ].filter(d => d.value > 0);
 
-        // 浏览器分析
-        const browserMap = new Map();
-        visits.forEach(v => {
-            const ua = (v.userAgent || '').toLowerCase();
-            let browser = '其他';
-            if (ua.includes('edg/')) browser = 'Edge';
-            else if (ua.includes('chrome')) browser = 'Chrome';
-            else if (ua.includes('firefox')) browser = 'Firefox';
-            else if (ua.includes('safari') && !ua.includes('chrome')) browser = 'Safari';
-            else if (ua.includes('opera') || ua.includes('opr')) browser = 'Opera';
-            browserMap.set(browser, (browserMap.get(browser) || 0) + 1);
-        });
         const browserData = Array.from(browserMap.entries())
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value)
@@ -174,8 +192,10 @@ exports.getAnalytics = async (req, res) => {
             topPages,
             hourlyDistribution,
             deviceData,
-            browserData
+            browserData,
+            note: "Detailed breakdowns (device/browser/hourly) are based on the last 7 days."
         });
+
     } catch (error) {
         console.error('Get analytics error:', error);
         res.status(500).json({ message: '获取统计数据失败' });
@@ -186,7 +206,7 @@ exports.getAnalytics = async (req, res) => {
 exports.getRecentVisits = async (req, res) => {
     try {
         const { limit = 50 } = req.query;
-        
+
         const visits = await prisma.visitLog.findMany({
             take: parseInt(limit),
             orderBy: { createdAt: 'desc' },

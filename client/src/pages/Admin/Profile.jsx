@@ -18,6 +18,13 @@ const AdminProfile = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
 
+    const normalizeSkills = (skills) => {
+        if (!Array.isArray(skills)) return [];
+        return skills
+            .map((item) => (typeof item === 'string' ? item : item?.name || ''))
+            .filter(Boolean);
+    };
+
     useEffect(() => {
         fetchProfile();
     }, []);
@@ -40,6 +47,8 @@ const AdminProfile = () => {
             data.interests = Array.isArray(data.interests) ? data.interests : [];
             data.experience = Array.isArray(data.experience) ? data.experience : [];
             data.education = Array.isArray(data.education) ? data.education : [];
+
+            data.skills = normalizeSkills(data.skills);
 
             setProfile(data);
         } catch (error) {
@@ -169,13 +178,12 @@ const AdminProfile = () => {
                 <div className="p-4 md:p-6 bg-card rounded-lg border border-border space-y-4">
                     <div className="flex justify-between items-center">
                         <h2 className="text-lg font-semibold flex items-center gap-2 text-foreground"><Code size={18} /> 技能栈</h2>
-                        <button type="button" onClick={() => addItem('skills', { name: '', level: 50 })} className="text-sm text-primary flex items-center gap-1 hover:underline"><Plus size={16} /> 添加技能</button>
+                        <button type="button" onClick={() => addItem('skills', '')} className="text-sm text-primary flex items-center gap-1 hover:underline"><Plus size={16} /> 添加技能</button>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {profile.skills.map((skill, index) => (
                             <div key={index} className="flex gap-2 items-center">
-                                <input type="text" value={skill.name} onChange={(e) => handleArrayChange('skills', index, 'name', e.target.value)} placeholder="技能名称" className="flex-1 bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground" />
-                                <input type="number" value={skill.level} onChange={(e) => handleArrayChange('skills', index, 'level', parseInt(e.target.value))} placeholder="%" className="w-20 bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground" min="0" max="100" />
+                                <input type="text" value={skill} onChange={(e) => handleArrayChange('skills', index, null, e.target.value)} placeholder="技能名称" className="flex-1 bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground" />
                                 <button type="button" onClick={() => removeItem('skills', index)} className="text-muted-foreground hover:text-destructive p-2 transition-colors"><Trash2 size={16} /></button>
                             </div>
                         ))}
