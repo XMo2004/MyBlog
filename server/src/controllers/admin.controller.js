@@ -2,7 +2,7 @@ const fs = require('fs')
 const path = require('path')
 const { PrismaClient } = require('@prisma/client')
 const prisma = global.prisma || (global.prisma = new PrismaClient())
-const { backupOnce } = require('../services/backup.service')
+const { backupOnce, restoreBackup, listBackups, getDatabaseType } = require('../services/backup.service')
 const bcrypt = require('bcryptjs')
 const { logOperation } = require('../middleware/log.middleware')
 
@@ -169,10 +169,195 @@ exports.getStats = async (req, res) => {
         value: cat._count.posts
     })).filter(cat => cat.value > 0).sort((a, b) => b.value - a.value).slice(0, 10);
 
+    // ============ 新增企业级统计维度 ============
+    
+    // 用户统计
+    const [usersCount, todayUsers, weekUsers] = await Promise.all([
+      prisma.user.count(),
+      prisma.user.count({
+        where: {
+          createdAt: {
+            gte: new Date(new Date().setHours(0, 0, 0, 0))
+          }
+        }
+      }),
+      prisma.user.count({
+        where: {
+          createdAt: {
+            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+          }
+        }
+      })
+    ]);
+
+    // 用户增长趋势（最近30天）
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29);
+    thirtyDaysAgo.setHours(0, 0, 0, 0);
+
+    const usersForGrowth = await prisma.user.findMany({
+      where: {
+        createdAt: {
+          gte: thirtyDaysAgo
+        }
+      },
+      select: { createdAt: true }
+    });
+
+    const userGrowthMap = new Map();
+    for (let i = 0; i < 30; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - (29 - i));
+      const dateKey = d.toISOString().split('T')[0];
+      userGrowthMap.set(dateKey, 0);
+    }
+
+    usersForGrowth.forEach(u => {
+      const dateKey = u.createdAt.toISOString().split('T')[0];
+      if (userGrowthMap.has(dateKey)) {
+        userGrowthMap.set(dateKey, userGrowthMap.get(dateKey) + 1);
+      }
+    });
+
+    const userGrowthData = Array.from(userGrowthMap.entries()).map(([date, count]) => ({
+      date: date.slice(5), // MM-DD format
+      count
+    }));
+
+    // 评论统计（今日、本周、待审核）
+    const [todayComments, weekComments, pendingComments] = await Promise.all([
+      prisma.comment.count({
+        where: {
+          createdAt: {
+            gte: new Date(new Date().setHours(0, 0, 0, 0))
+          }
+        }
+      }),
+      prisma.comment.count({
+        where: {
+          createdAt: {
+            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+          }
+        }
+      }),
+      // 获取最近需要关注的评论（最近24小时）
+      prisma.comment.count({
+        where: {
+          createdAt: {
+            gte: new Date(Date.now() - 24 * 60 * 60 * 1000)
+          }
+        }
+      })
+    ]);
+
+    // 评论趋势（最近7天）
+    const commentsForTrend = await prisma.comment.findMany({
+      where: {
+        createdAt: {
+          gte: sevenDaysAgo
+        }
+      },
+      select: { createdAt: true }
+    });
+
+    const commentTrendMap = new Map();
+    for (let i = 0; i < 7; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      const dateKey = d.toISOString().split('T')[0];
+      const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+      commentTrendMap.set(dateKey, { name: dayName, count: 0 });
+    }
+
+    commentsForTrend.forEach(c => {
+      const dateKey = c.createdAt.toISOString().split('T')[0];
+      if (commentTrendMap.has(dateKey)) {
+        const entry = commentTrendMap.get(dateKey);
+        entry.count++;
+      }
+    });
+
+    const commentTrendData = Array.from(commentTrendMap.values());
+
+    // 今日访问统计
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const todayVisits = await prisma.visitLog.findMany({
+      where: {
+        createdAt: {
+          gte: todayStart
+        }
+      },
+      select: { ip: true }
+    });
+
+    const todayPV = todayVisits.length;
+    const todayUV = new Set(todayVisits.map(v => v.ip)).size;
+
+    // 本周访问统计
+    const weekStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const weekVisits = await prisma.visitLog.findMany({
+      where: {
+        createdAt: {
+          gte: weekStart
+        }
+      },
+      select: { ip: true }
+    });
+
+    const weekPV = weekVisits.length;
+    const weekUV = new Set(weekVisits.map(v => v.ip)).size;
+
+    // 热门文章 Top 5
+    const topPosts = await prisma.post.findMany({
+      where: { published: true },
+      orderBy: { 
+        comments: {
+          _count: 'desc'
+        }
+      },
+      take: 5,
+      select: {
+        id: true,
+        title: true,
+        createdAt: true,
+        _count: {
+          select: { comments: true }
+        }
+      }
+    });
+
+    // 内容健康度指标
+    const [
+      categoriesCount,
+      columnsCount,
+      bookmarksCount
+    ] = await Promise.all([
+      prisma.category.count(),
+      prisma.column.count(),
+      prisma.bookmark.count()
+    ]);
+
+    // 计算平均文章字数
+    const avgWordCount = postsCount > 0 ? Math.round(totalWordCount / postsCount) : 0;
+
+    // 会员统计
+    const membershipStats = await prisma.user.groupBy({
+      by: ['membershipType'],
+      _count: true
+    });
+
+    const membershipDistribution = membershipStats.map(m => ({
+      level: m.membershipType || 'regular',
+      count: m._count
+    }));
+
     res.json({
       posts: { published: postsCount, drafts: postsDraftCount },
       comments: commentsCount,
       totalWordCount,
+      avgWordCount,
       tags: tagsCount,
       resources: resourcesCount,
       projects: projectsCount,
@@ -180,7 +365,36 @@ exports.getStats = async (req, res) => {
       trendData,
       heatmapData,
       tagDistribution,
-      categoryDistribution
+      categoryDistribution,
+      // 新增数据
+      users: {
+        total: usersCount,
+        today: todayUsers,
+        thisWeek: weekUsers
+      },
+      userGrowthData,
+      commentsStats: {
+        total: commentsCount,
+        today: todayComments,
+        thisWeek: weekComments,
+        recentPending: pendingComments
+      },
+      commentTrendData,
+      todayStats: {
+        pv: todayPV,
+        uv: todayUV
+      },
+      weekStats: {
+        pv: weekPV,
+        uv: weekUV
+      },
+      topPosts,
+      contentOverview: {
+        categories: categoriesCount,
+        columns: columnsCount,
+        bookmarks: bookmarksCount
+      },
+      membershipDistribution
     });
   } catch (e) {
     console.error(e);
@@ -190,29 +404,31 @@ exports.getStats = async (req, res) => {
 
 exports.listBackups = async (req, res) => {
   try {
-    const backupsDir = path.join(__dirname, '..', '..', 'backups')
-    if (!fs.existsSync(backupsDir)) fs.mkdirSync(backupsDir, { recursive: true })
-    const files = await fs.promises.readdir(backupsDir)
-    const list = await Promise.all(
-      files
-        .filter(f => f.endsWith('.db'))
-        .map(async f => {
-          const stat = await fs.promises.stat(path.join(backupsDir, f))
-          return { file: f, createdAt: stat.mtime }
-        })
-    )
-    res.json(list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)))
+    const backups = await listBackups()
+    const dbType = getDatabaseType()
+    res.json({ 
+      backups, 
+      databaseType: dbType,
+      message: `当前使用 ${dbType === 'postgresql' ? 'PostgreSQL' : 'SQLite'} 数据库`
+    })
   } catch (e) {
-    res.status(500).json({ message: 'List failed' })
+    console.error('列出备份失败:', e)
+    res.status(500).json({ message: '获取备份列表失败' })
   }
 }
 
 exports.backupDatabase = async (req, res) => {
   try {
     const file = await backupOnce()
-    res.json({ file })
+    const dbType = getDatabaseType()
+    res.json({ 
+      file, 
+      databaseType: dbType,
+      message: `${dbType === 'postgresql' ? 'PostgreSQL' : 'SQLite'} 备份成功`
+    })
   } catch (e) {
-    res.status(500).json({ message: 'Backup failed' })
+    console.error('备份失败:', e)
+    res.status(500).json({ message: '备份失败: ' + e.message })
   }
 }
 
@@ -222,20 +438,34 @@ exports.restoreDatabase = async (req, res) => {
   try {
     const { file } = req.body
     if (!file) return res.status(400).json({ message: 'file required' })
+    
+    // 验证文件名格式
+    if (!/^[A-Za-z0-9._-]+\.(db|sql|json)$/.test(file)) {
+      return res.status(400).json({ message: 'invalid file format' })
+    }
+    
     const backupsDir = path.join(__dirname, '..', '..', 'backups')
-    const prismaDir = path.join(__dirname, '..', '..', 'prisma')
-    if (!/^[A-Za-z0-9._-]+\.db$/.test(file)) return res.status(400).json({ message: 'invalid file' })
     const source = path.join(backupsDir, file)
     const resolvedSource = path.resolve(source)
     const resolvedBackups = path.resolve(backupsDir)
-    if (!resolvedSource.startsWith(resolvedBackups)) return res.status(400).json({ message: 'invalid path' })
-    const target = path.join(prismaDir, 'dev.db')
-    await prisma.$disconnect()
-    await fs.promises.copyFile(source, target)
-    await prisma.$connect()
-    res.json({ restored: file })
+    
+    if (!resolvedSource.startsWith(resolvedBackups)) {
+      return res.status(400).json({ message: 'invalid path' })
+    }
+    
+    if (!fs.existsSync(source)) {
+      return res.status(404).json({ message: '备份文件不存在' })
+    }
+    
+    await restoreBackup(file)
+    
+    res.json({ 
+      restored: file,
+      message: '数据库恢复成功'
+    })
   } catch (e) {
-    res.status(500).json({ message: 'Restore failed' })
+    console.error('恢复失败:', e)
+    res.status(500).json({ message: '恢复失败: ' + e.message })
   }
 }
 
@@ -438,3 +668,156 @@ exports.batchUpdateRole = async (req, res) => {
     res.status(500).json({ message: 'Batch update failed' })
   }
 }
+
+// 系统健康监控
+exports.getSystemHealth = async (req, res) => {
+  try {
+    const startTime = Date.now()
+    
+    // 数据库连接检查
+    let dbStatus = { connected: false, latency: 0, type: getDatabaseType() }
+    try {
+      const dbStart = Date.now()
+      await prisma.$queryRaw`SELECT 1`
+      dbStatus.connected = true
+      dbStatus.latency = Date.now() - dbStart
+    } catch (e) {
+      dbStatus.error = e.message
+    }
+
+    // 获取数据库统计
+    const [usersCount, postsCount, commentsCount, visitsCount] = await Promise.all([
+      prisma.user.count(),
+      prisma.post.count(),
+      prisma.comment.count(),
+      prisma.visitLog.count()
+    ])
+
+    // 备份状态
+    const backups = await listBackups()
+    const latestBackup = backups.length > 0 ? backups[0] : null
+    const backupStatus = {
+      total: backups.length,
+      latest: latestBackup ? {
+        file: latestBackup.file,
+        size: latestBackup.size,
+        createdAt: latestBackup.createdAt
+      } : null
+    }
+
+    // 服务器信息
+    const serverInfo = {
+      nodeVersion: process.version,
+      platform: process.platform,
+      arch: process.arch,
+      uptime: Math.floor(process.uptime()),
+      memoryUsage: process.memoryUsage(),
+      pid: process.pid
+    }
+
+    // 格式化内存
+    const formatBytes = (bytes) => {
+      if (bytes < 1024) return bytes + ' B'
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+    }
+
+    const memoryFormatted = {
+      heapUsed: formatBytes(serverInfo.memoryUsage.heapUsed),
+      heapTotal: formatBytes(serverInfo.memoryUsage.heapTotal),
+      rss: formatBytes(serverInfo.memoryUsage.rss),
+      external: formatBytes(serverInfo.memoryUsage.external)
+    }
+
+    // 格式化运行时间
+    const formatUptime = (seconds) => {
+      const days = Math.floor(seconds / 86400)
+      const hours = Math.floor((seconds % 86400) / 3600)
+      const mins = Math.floor((seconds % 3600) / 60)
+      const secs = seconds % 60
+      const parts = []
+      if (days > 0) parts.push(`${days}天`)
+      if (hours > 0) parts.push(`${hours}小时`)
+      if (mins > 0) parts.push(`${mins}分钟`)
+      if (secs > 0 || parts.length === 0) parts.push(`${secs}秒`)
+      return parts.join(' ')
+    }
+
+    res.json({
+      status: dbStatus.connected ? 'healthy' : 'unhealthy',
+      timestamp: new Date().toISOString(),
+      responseTime: Date.now() - startTime,
+      database: dbStatus,
+      counts: {
+        users: usersCount,
+        posts: postsCount,
+        comments: commentsCount,
+        visits: visitsCount
+      },
+      backup: backupStatus,
+      server: {
+        ...serverInfo,
+        uptimeFormatted: formatUptime(serverInfo.uptime),
+        memory: memoryFormatted
+      }
+    })
+  } catch (e) {
+    console.error('Health check failed:', e)
+    res.status(500).json({ 
+      status: 'error', 
+      message: '健康检查失败',
+      error: e.message 
+    })
+  }
+}
+
+// 导出操作日志
+exports.exportLogs = async (req, res) => {
+  try {
+    const { model, action, startDate, endDate, format = 'json' } = req.query
+    
+    const where = {}
+    if (model) where.model = model
+    if (action) where.action = action
+    if (startDate || endDate) {
+      where.createdAt = {}
+      if (startDate) where.createdAt.gte = new Date(startDate)
+      if (endDate) where.createdAt.lte = new Date(endDate)
+    }
+
+    const logs = await prisma.operationLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 10000 // 限制最大导出数量
+    })
+
+    if (format === 'csv') {
+      // CSV格式导出
+      const headers = ['ID', '时间', '模型', '操作', '目标ID', '用户ID', 'IP']
+      const rows = logs.map(log => [
+        log.id,
+        new Date(log.createdAt).toISOString(),
+        log.model,
+        log.action,
+        log.targetId || '',
+        log.userId || '',
+        log.ip || ''
+      ])
+      
+      const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
+      
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+      res.setHeader('Content-Disposition', `attachment; filename=logs_${Date.now()}.csv`)
+      res.send('\ufeff' + csv) // BOM for Excel
+    } else {
+      // JSON格式导出
+      res.setHeader('Content-Type', 'application/json')
+      res.setHeader('Content-Disposition', `attachment; filename=logs_${Date.now()}.json`)
+      res.json(logs)
+    }
+  } catch (e) {
+    console.error('Export logs failed:', e)
+    res.status(500).json({ message: '导出日志失败' })
+  }
+}
+

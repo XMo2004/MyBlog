@@ -13,6 +13,9 @@ const logOperation = async ({ req, model, action, targetId, before, after }) => 
       ip: req && req.ip ? req.ip : null,
     }
     await prisma.operationLog.create({ data: payload })
+    // 删除24小时之前的操作日志
+    const expire = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    await prisma.operationLog.deleteMany({ where: { createdAt: { lt: expire } } })
   } catch (e) {}
 }
 

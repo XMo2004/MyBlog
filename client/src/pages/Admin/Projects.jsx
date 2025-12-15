@@ -163,7 +163,7 @@ const AdminProjects = () => {
                         )}
                         <button
                             onClick={() => { handleCancel(); setIsEditing(true); }}
-                            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm whitespace-nowrap"
+                            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors whitespace-nowrap"
                         >
                             <Plus size={16} /> 新建
                         </button>
@@ -177,7 +177,7 @@ const AdminProjects = () => {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 10 }}
-                        className="bg-card p-4 md:p-6 rounded-lg border border-border shadow-sm"
+                        className="bg-card p-4 md:p-6 rounded-lg border border-border"
                     >
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-lg font-semibold">{formData.id ? '编辑项目' : '新建项目'}</h2>
@@ -335,7 +335,7 @@ const AdminProjects = () => {
                                 </button>
                                 <button
                                     type="submit"
-                                    className="px-6 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm"
+                                    className="px-6 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
                                 >
                                     {formData.id ? '更新项目' : '创建项目'}
                                 </button>
@@ -353,13 +353,13 @@ const AdminProjects = () => {
                                 <div className="absolute top-4 right-4 flex gap-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity z-10">
                                     <button 
                                         onClick={() => handleEdit(project)} 
-                                        className="p-1.5 bg-background border border-border hover:bg-secondary rounded-md text-muted-foreground hover:text-foreground transition-colors shadow-sm"
+                                        className="p-1.5 bg-background border border-border hover:bg-secondary rounded-md text-muted-foreground hover:text-foreground transition-colors"
                                     >
                                         <Edit2 size={14} />
                                     </button>
                                     <button 
                                         onClick={() => handleDelete(project.id)} 
-                                        className="p-1.5 bg-background border border-border hover:bg-destructive/10 rounded-md text-muted-foreground hover:text-destructive transition-colors shadow-sm"
+                                        className="p-1.5 bg-background border border-border hover:bg-destructive/10 rounded-md text-muted-foreground hover:text-destructive transition-colors"
                                     >
                                         <Trash2 size={14} />
                                     </button>

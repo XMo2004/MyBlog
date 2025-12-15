@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useEditor, EditorContent, NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, BubbleMenu, FloatingMenu } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Text from '@tiptap/extension-text';
@@ -19,9 +19,37 @@ import {
     Type, Palette, Highlighter, RemoveFormatting,
     AlignLeft, AlignCenter, AlignRight, Ghost, X,
     Info, AlertTriangle, XCircle, CheckCircle2, Lightbulb,
-    Image as ImageIcon, MessageSquare
+    Image as ImageIcon, MessageSquare, GitBranch, ListChecks
 } from 'lucide-react';
 import AnnotationDialog from './AnnotationDialog';
+import MindMapDialog from './MindMapDialog';
+import QuizDialog from './QuizDialog';
+import MindMap from './MindMap';
+import Quiz from './Quiz';
+
+// 防抖 Hook
+const useDebounce = (callback, delay) => {
+    const timeoutRef = useRef(null);
+    
+    const debouncedCallback = useCallback((...args) => {
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+        }
+        timeoutRef.current = setTimeout(() => {
+            callback(...args);
+        }, delay);
+    }, [callback, delay]);
+    
+    useEffect(() => {
+        return () => {
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+            }
+        };
+    }, []);
+    
+    return debouncedCallback;
+};
 
 const MACARON_COLORS = [
     { name: '蜜桃粉', value: 'var(--rt-highlight-peach)' },
@@ -258,6 +286,151 @@ const Callout = Node.create({
                 }
             }
         }
+    },
+});
+
+// MindMap Node View Component
+const MindMapNodeView = ({ node, updateAttributes }) => {
+    return (
+        <NodeViewWrapper className="my-4">
+            <MindMap
+                data={node.attrs.data}
+                onDataChange={(newData) => updateAttributes({ data: newData })}
+                readOnly={false}
+            />
+        </NodeViewWrapper>
+    );
+};
+
+// MindMap Extension
+const MindMapNode = Node.create({
+    name: 'mindmap',
+    group: 'block',
+    atom: true,
+    draggable: true,
+
+    addAttributes() {
+        return {
+            data: {
+                default: JSON.stringify({ id: 'root', text: '思维导图', children: [] }),
+                parseHTML: element => element.getAttribute('data-mindmap'),
+                renderHTML: attributes => {
+                    return { 'data-mindmap': attributes.data };
+                },
+            },
+        };
+    },
+
+    parseHTML() {
+        return [
+            {
+                tag: 'div[data-type="mindmap"]',
+            },
+        ];
+    },
+
+    renderHTML({ HTMLAttributes }) {
+        return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'mindmap' }), 0];
+    },
+
+    addNodeView() {
+        return ReactNodeViewRenderer(MindMapNodeView);
+    },
+
+    addCommands() {
+        return {
+            insertMindMap: (data) => ({ commands }) => {
+                return commands.insertContent({
+                    type: this.name,
+                    attrs: { data },
+                });
+            },
+        };
+    },
+
+    addStorage() {
+        return {
+            markdown: {
+                serialize(state, node) {
+                    const data = node.attrs.data || '{}';
+                    state.write(`\n\`\`\`mindmap\n${data}\n\`\`\`\n`);
+                },
+            },
+        };
+    },
+});
+
+// Quiz Node View Component
+const QuizNodeView = ({ node }) => {
+    return (
+        <NodeViewWrapper className="my-4">
+            <Quiz data={node.attrs.data} />
+        </NodeViewWrapper>
+    );
+};
+
+// Quiz Extension
+const QuizNode = Node.create({
+    name: 'quiz',
+    group: 'block',
+    atom: true,
+    draggable: true,
+
+    addAttributes() {
+        return {
+            data: {
+                default: JSON.stringify({
+                    question: '问题',
+                    options: [],
+                    correctAnswers: [],
+                    explanation: '',
+                    isMultiple: false,
+                    shuffle: true
+                }),
+                parseHTML: element => element.getAttribute('data-quiz'),
+                renderHTML: attributes => {
+                    return { 'data-quiz': attributes.data };
+                },
+            },
+        };
+    },
+
+    parseHTML() {
+        return [
+            {
+                tag: 'div[data-type="quiz"]',
+            },
+        ];
+    },
+
+    renderHTML({ HTMLAttributes }) {
+        return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'quiz' }), 0];
+    },
+
+    addNodeView() {
+        return ReactNodeViewRenderer(QuizNodeView);
+    },
+
+    addCommands() {
+        return {
+            insertQuiz: (data) => ({ commands }) => {
+                return commands.insertContent({
+                    type: this.name,
+                    attrs: { data },
+                });
+            },
+        };
+    },
+
+    addStorage() {
+        return {
+            markdown: {
+                serialize(state, node) {
+                    const data = node.attrs.data || '{}';
+                    state.write(`\n\`\`\`quiz\n${data}\n\`\`\`\n`);
+                },
+            },
+        };
     },
 });
 
@@ -512,26 +685,69 @@ const MarkdownParagraph = Paragraph.extend({
 
 const ImageComponent = ({ node, updateAttributes, selected }) => {
     const { src, alt, width, textAlign } = node.attrs;
+    const [imageError, setImageError] = React.useState(false);
+    const [isLoading, setIsLoading] = React.useState(true);
 
-    const displayWidth = typeof width === 'number' ? width : 100;
+    const displayWidth = typeof width === 'number' && width > 0 && width <= 100 ? width : 100;
     
-    let alignClass = 'items-center';
-    if (textAlign === 'left') alignClass = 'items-start';
-    if (textAlign === 'right') alignClass = 'items-end';
+    // 计算对齐样式
+    const getAlignmentStyle = () => {
+        switch (textAlign) {
+            case 'left':
+                return { marginLeft: 0, marginRight: 'auto' };
+            case 'right':
+                return { marginLeft: 'auto', marginRight: 0 };
+            case 'center':
+            default:
+                return { marginLeft: 'auto', marginRight: 'auto' };
+        }
+    };
+
+    const handleImageLoad = () => {
+        setIsLoading(false);
+        setImageError(false);
+    };
+
+    const handleImageError = () => {
+        setIsLoading(false);
+        setImageError(true);
+    };
 
     return (
-        <NodeViewWrapper className={`my-4 flex flex-col ${alignClass}`}>
+        <NodeViewWrapper className="my-4">
             <div
-                className={`relative ${selected ? 'ring-2 ring-primary/60 rounded-lg' : ''}`}
+                className={`relative transition-all duration-200 ${
+                    selected ? 'ring-2 ring-primary/60 ring-offset-2 ring-offset-background rounded-lg' : ''
+                }`}
                 contentEditable={false}
-                style={{ width: `${displayWidth}%`, maxWidth: '100%' }}
+                style={{
+                    width: `${displayWidth}%`,
+                    maxWidth: '100%',
+                    display: 'block',
+                    ...getAlignmentStyle(),
+                }}
             >
-                <img
-                    src={src}
-                    alt={alt || ''}
-                    style={{ width: '100%', height: 'auto' }}
-                    className="rounded-lg shadow-sm block"
-                />
+                {isLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-muted/50 rounded-lg">
+                        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    </div>
+                )}
+                {imageError ? (
+                    <div className="flex flex-col items-center justify-center p-8 bg-muted/30 rounded-lg border border-dashed border-border">
+                        <ImageIcon size={32} className="text-muted-foreground mb-2" />
+                        <span className="text-sm text-muted-foreground">图片加载失败</span>
+                    </div>
+                ) : (
+                    <img
+                        src={src}
+                        alt={alt || ''}
+                        onLoad={handleImageLoad}
+                        onError={handleImageError}
+                        style={{ width: '100%', height: 'auto', opacity: isLoading ? 0 : 1 }}
+                        className="rounded-lg shadow-sm block transition-opacity duration-200"
+                        draggable={false}
+                    />
+                )}
             </div>
         </NodeViewWrapper>
     );
@@ -547,26 +763,50 @@ const ImageNode = Node.create({
         return {
             src: {
                 default: null,
+                parseHTML: element => element.getAttribute('src') || element.getAttribute('data-src'),
             },
             alt: {
                 default: null,
+                parseHTML: element => element.getAttribute('alt') || '',
             },
             title: {
                 default: null,
+                parseHTML: element => element.getAttribute('title'),
             },
             width: {
                 default: 100,
                 parseHTML: element => {
-                    const width = element.style.width || element.getAttribute('width');
-                    if (width) {
-                        return parseInt(width, 10);
-                    }
+                    // 从 style 或 data-width 解析宽度
+                    const dataWidth = element.getAttribute('data-width');
+                    if (dataWidth) return parseInt(dataWidth, 10) || 100;
+                    
+                    const style = element.getAttribute('style') || '';
+                    const widthMatch = style.match(/width:\s*(\d+)%/);
+                    if (widthMatch) return parseInt(widthMatch[1], 10);
+                    
+                    const attrWidth = element.getAttribute('width');
+                    if (attrWidth) return parseInt(attrWidth, 10) || 100;
+                    
                     return 100;
                 },
-                renderHTML: attributes => {
-                    return {
-                        style: `width: ${attributes.width}%`,
+            },
+            textAlign: {
+                default: 'center',
+                parseHTML: element => {
+                    // 从 data-align 或 style 解析对齐
+                    const dataAlign = element.getAttribute('data-align');
+                    if (dataAlign && ['left', 'center', 'right'].includes(dataAlign)) {
+                        return dataAlign;
                     }
+                    
+                    const style = element.getAttribute('style') || '';
+                    if (style.includes('margin-right: 0') || style.includes('margin-right:0')) {
+                        return 'right';
+                    }
+                    if (style.includes('margin-left: 0;') && !style.includes('margin-right: 0')) {
+                        return 'left';
+                    }
+                    return 'center';
                 },
             },
         };
@@ -579,7 +819,9 @@ const ImageNode = Node.create({
         ];
     },
     renderHTML({ HTMLAttributes }) {
-        return ['img', mergeAttributes(HTMLAttributes, { draggable: false })];
+        const { src, alt, title, width, textAlign } = HTMLAttributes;
+        const style = `width: ${width || 100}%`;
+        return ['img', mergeAttributes({ src, alt, title, style, 'data-align': textAlign, 'data-width': width }, { draggable: 'false' })];
     },
     addNodeView() {
         return ReactNodeViewRenderer(ImageComponent);
@@ -590,20 +832,31 @@ const ImageNode = Node.create({
                 (options) =>
                 ({ commands }) => {
                     if (!options || !options.src) return false;
+                    const width = typeof options.width === 'number' 
+                        ? Math.max(10, Math.min(100, options.width))
+                        : typeof options.width === 'string'
+                            ? Math.max(10, Math.min(100, parseInt(options.width, 10) || 100))
+                            : 100;
                     return commands.insertContent({
                         type: this.name,
                         attrs: {
                             src: options.src,
-                            alt: options.alt || null,
+                            alt: options.alt || '',
                             title: options.title || null,
-                            width:
-                                typeof options.width === 'number'
-                                    ? options.width
-                                    : typeof options.width === 'string'
-                                    ? parseInt(options.width, 10) || 100
-                                    : 100,
+                            width,
+                            textAlign: options.textAlign || 'center',
                         },
                     });
+                },
+            updateImageAttributes:
+                (attributes) =>
+                ({ commands, state }) => {
+                    const { selection } = state;
+                    const node = state.doc.nodeAt(selection.from);
+                    if (node?.type.name === 'image') {
+                        return commands.updateAttributes('image', attributes);
+                    }
+                    return false;
                 },
         };
     },
@@ -612,23 +865,19 @@ const ImageNode = Node.create({
             markdown: {
                 serialize(state, node) {
                     const src = node.attrs.src || '';
-                    const alt = node.attrs.alt || '';
+                    const alt = (node.attrs.alt || '').replace(/"/g, '&quot;');
                     const width = node.attrs.width || 100;
-                    const textAlign = node.attrs.textAlign;
-
-                    let style = `width: ${width}%;`;
-                    if (textAlign) {
-                        style += ' display: block;';
-                        if (textAlign === 'center') {
-                            style += ' margin-left: auto; margin-right: auto;';
-                        } else if (textAlign === 'right') {
-                            style += ' margin-left: auto; margin-right: 0;';
-                        } else if (textAlign === 'left') {
-                            style += ' margin-left: 0; margin-right: auto;';
-                        }
+                    const textAlign = node.attrs.textAlign || 'center';
+                    
+                    // 简化的输出格式：使用 data 属性存储信息
+                    // 这样源码更简洁易读
+                    if (width === 100 && textAlign === 'center') {
+                        // 默认情况，使用标准 Markdown
+                        state.write(`![${alt}](${src})`);
+                    } else {
+                        // 非默认情况，使用简洁的 HTML 格式
+                        state.write(`<img src="${src}" alt="${alt}" data-width="${width}" data-align="${textAlign}" />`);
                     }
-
-                    state.write(`<img src="${src}" alt="${alt}" style="${style}" />`);
                 },
             },
         };
@@ -657,10 +906,59 @@ const ToolbarGroup = ({ children, className = "" }) => (
     </div>
 );
 
-const MenuBar = ({ editor }) => {
+const MenuBar = ({ editor, onOpenAnnotation, onOpenMindMap, onOpenQuiz }) => {
     if (!editor) {
         return null;
     }
+
+    // 安全的字体切换处理
+    const handleFontChange = (event) => {
+        const value = event.target.value;
+        try {
+            if (value) {
+                editor.chain().focus().setFontFamily(value).run();
+            } else {
+                editor.chain().focus().unsetFontFamily().run();
+            }
+        } catch (error) {
+            console.error('Font change error:', error);
+        }
+    };
+
+    // 安全的颜色切换
+    const handleColorChange = (colorValue) => {
+        try {
+            if (editor.isActive('textStyle', { color: colorValue })) {
+                editor.chain().focus().unsetColor().run();
+            } else {
+                editor.chain().focus().setColor(colorValue).run();
+            }
+        } catch (error) {
+            console.error('Color change error:', error);
+        }
+    };
+
+    // 安全的高亮切换
+    const handleHighlightChange = (colorValue) => {
+        try {
+            if (editor.isActive('highlight', { color: colorValue })) {
+                editor.chain().focus().unsetHighlight().run();
+            } else {
+                editor.chain().focus().setHighlight({ color: colorValue }).run();
+            }
+        } catch (error) {
+            console.error('Highlight change error:', error);
+        }
+    };
+
+    // 获取当前字体
+    const getCurrentFont = () => {
+        try {
+            return editor.getAttributes('textStyle')?.fontFamily || '';
+        } catch {
+            return '';
+        }
+    };
 
     return (
         <div className="flex flex-wrap items-center gap-2 p-3 border-b border-border bg-background/95 backdrop-blur sticky top-0 z-20 transition-all">
@@ -702,9 +1000,10 @@ const MenuBar = ({ editor }) => {
                 </ToolbarButton>
                 <ToolbarButton
                     onClick={() => {
-                        const currentAttrs = editor.getAttributes('annotation');
-                        setCurrentAnnotation(currentAttrs?.explanation || '');
-                        setIsAnnotationDialogOpen(true);
+                        if (onOpenAnnotation) {
+                            const currentAttrs = editor.getAttributes('annotation');
+                            onOpenAnnotation(currentAttrs?.explanation || '');
+                        }
                     }}
                     isActive={editor.isActive('annotation')}
                     title="添加或修改批注"
@@ -768,11 +1067,7 @@ const MenuBar = ({ editor }) => {
                             key={color.value}
                             onClick={(e) => {
                                 e.preventDefault();
-                                if (editor.isActive('textStyle', { color: color.value })) {
-                                    editor.chain().focus().unsetColor().run();
-                                } else {
-                                    editor.chain().focus().setColor(color.value).run();
-                                }
+                                handleColorChange(color.value);
                             }}
                             className={`w-4 h-4 rounded-full border border-border/50 flex items-center justify-center transition-transform hover:scale-110 ${
                                 editor.isActive('textStyle', { color: color.value })
@@ -786,28 +1081,8 @@ const MenuBar = ({ editor }) => {
                     ))}
                     <div className="w-px h-4 bg-border/50 mx-1" />
                     <select
-                        onChange={(event) => {
-                            const value = event.target.value;
-                            const currentAttrs = editor.getAttributes('textStyle') || {};
-                            const nextAttrs = { ...currentAttrs };
-                            if (value) {
-                                nextAttrs.fontFamily = value;
-                            } else {
-                                delete nextAttrs.fontFamily;
-                            }
-                            Object.keys(nextAttrs).forEach((key) => {
-                                if (nextAttrs[key] == null || nextAttrs[key] === '') {
-                                    delete nextAttrs[key];
-                                }
-                            });
-                            const chain = editor.chain().focus();
-                            if (Object.keys(nextAttrs).length === 0) {
-                                chain.unsetFontFamily().run();
-                            } else {
-                                chain.setMark('textStyle', nextAttrs).run();
-                            }
-                        }}
-                        value={editor.getAttributes('textStyle').fontFamily || ''}
+                        onChange={handleFontChange}
+                        value={getCurrentFont()}
                         className="h-6 text-xs bg-transparent border-none outline-none max-w-[80px] text-muted-foreground hover:text-foreground cursor-pointer"
                         title="字体"
                     >
@@ -841,11 +1116,7 @@ const MenuBar = ({ editor }) => {
                             key={color.value}
                             onClick={(e) => {
                                 e.preventDefault();
-                                if (editor.isActive('highlight', { color: color.value })) {
-                                    editor.chain().focus().unsetHighlight().run();
-                                } else {
-                                    editor.chain().focus().setHighlight({ color: color.value }).run();
-                                }
+                                handleHighlightChange(color.value);
                             }}
                             className={`w-3 h-3 rounded-full border border-border/50 transition-transform hover:scale-125 ${
                                 editor.isActive('highlight', { color: color.value }) 
@@ -917,6 +1188,21 @@ const MenuBar = ({ editor }) => {
                 })}
             </ToolbarGroup>
 
+            <ToolbarGroup>
+                <ToolbarButton
+                    onClick={() => onOpenMindMap && onOpenMindMap()}
+                    title="插入思维导图"
+                >
+                    <GitBranch size={16} />
+                </ToolbarButton>
+                <ToolbarButton
+                    onClick={() => onOpenQuiz && onOpenQuiz()}
+                    title="插入选择题"
+                >
+                    <ListChecks size={16} />
+                </ToolbarButton>
+            </ToolbarGroup>
+
             <div className="flex-1" />
 
              <ToolbarGroup>
@@ -946,12 +1232,22 @@ const MenuBar = ({ editor }) => {
 };
 
 const ImageBubbleMenuContent = ({ editor }) => {
-    const [attributes, setAttributes] = useState(editor.getAttributes('image'));
+    const [attributes, setAttributes] = useState(() => {
+        try {
+            return editor.getAttributes('image') || {};
+        } catch {
+            return {};
+        }
+    });
 
     useEffect(() => {
         const updateAttributes = () => {
-            if (editor.isActive('image')) {
-                setAttributes(editor.getAttributes('image'));
+            try {
+                if (editor.isActive('image')) {
+                    setAttributes(editor.getAttributes('image') || {});
+                }
+            } catch (error) {
+                console.error('Error updating image attributes:', error);
             }
         };
         
@@ -967,38 +1263,108 @@ const ImageBubbleMenuContent = ({ editor }) => {
     if (!editor.isActive('image')) return null;
 
     const handleAltChange = (e) => {
-        const newAlt = e.target.value;
-        editor.chain().updateAttributes('image', { alt: newAlt }).run();
+        try {
+            const newAlt = e.target.value;
+            editor.chain().updateAttributes('image', { alt: newAlt }).run();
+        } catch (error) {
+            console.error('Error updating alt:', error);
+        }
     };
     
     const handleWidthChange = (e) => {
-        const newWidth = parseInt(e.target.value, 10);
-        editor.chain().updateAttributes('image', { width: newWidth }).run();
+        try {
+            const newWidth = Math.max(10, Math.min(100, parseInt(e.target.value, 10) || 100));
+            editor.chain().updateAttributes('image', { width: newWidth }).run();
+        } catch (error) {
+            console.error('Error updating width:', error);
+        }
     };
 
-    const displayWidth = typeof attributes.width === 'number' ? attributes.width : 100;
+    const handleAlignChange = (align) => {
+        try {
+            editor.chain().updateAttributes('image', { textAlign: align }).run();
+        } catch (error) {
+            console.error('Error updating alignment:', error);
+        }
+    };
+
+    const displayWidth = typeof attributes.width === 'number' && attributes.width > 0 ? attributes.width : 100;
+    const currentAlign = attributes.textAlign || 'center';
+
+    const alignOptions = [
+        { value: 'left', icon: AlignLeft, label: '左对齐' },
+        { value: 'center', icon: AlignCenter, label: '居中' },
+        { value: 'right', icon: AlignRight, label: '右对齐' },
+    ];
 
     return (
-        <div className="flex flex-col items-center gap-2 p-3 rounded-xl border border-border bg-popover shadow-xl text-popover-foreground animate-in fade-in zoom-in-95 w-80">
-            <input
-                type="text"
-                value={attributes.alt || ''}
-                onChange={handleAltChange}
-                placeholder="添加图片描述..."
-                className="text-xs w-full bg-background border border-border rounded px-2 py-1.5 focus:outline-none focus:border-primary/50 transition-colors placeholder:text-muted-foreground/50"
-            />
-            <div className="flex items-center gap-2 text-xs text-muted-foreground w-full">
-                <span className="shrink-0">尺寸</span>
+        <div className="flex flex-col gap-3 p-3 rounded-xl border border-border bg-popover shadow-xl text-popover-foreground animate-in fade-in zoom-in-95 w-80">
+            {/* 图片描述输入 */}
+            <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">描述文字</label>
                 <input
-                    type="range"
-                    min="20"
-                    max="100"
-                    step="5"
-                    value={displayWidth}
-                    onChange={handleWidthChange}
-                    className="flex-1 accent-primary h-1.5 bg-muted-foreground/20 rounded-lg appearance-none cursor-pointer"
+                    type="text"
+                    value={attributes.alt || ''}
+                    onChange={handleAltChange}
+                    placeholder="添加图片描述 (用于辅助功能)..."
+                    className="text-xs w-full bg-background border border-border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all placeholder:text-muted-foreground/50"
                 />
-                <span className="w-8 text-right font-mono">{displayWidth}%</span>
+            </div>
+
+            {/* 对齐方式 */}
+            <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">对齐方式</label>
+                <div className="flex gap-1 bg-muted/30 p-1 rounded-lg">
+                    {alignOptions.map(({ value, icon: Icon, label }) => (
+                        <button
+                            key={value}
+                            onClick={() => handleAlignChange(value)}
+                            className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md text-xs transition-all ${
+                                currentAlign === value
+                                    ? 'bg-primary text-primary-foreground shadow-sm'
+                                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                            }`}
+                            title={label}
+                            type="button"
+                        >
+                            <Icon size={14} />
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* 尺寸调整 */}
+            <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">尺寸调整</label>
+                <div className="flex items-center gap-2">
+                    <input
+                        type="range"
+                        min="10"
+                        max="100"
+                        step="5"
+                        value={displayWidth}
+                        onChange={handleWidthChange}
+                        className="flex-1 accent-primary h-1.5 bg-muted-foreground/20 rounded-lg appearance-none cursor-pointer"
+                    />
+                    <span className="w-10 text-right text-xs font-mono text-muted-foreground">{displayWidth}%</span>
+                </div>
+                {/* 快捷尺寸按钮 */}
+                <div className="flex gap-1 mt-1">
+                    {[25, 50, 75, 100].map((size) => (
+                        <button
+                            key={size}
+                            onClick={() => handleWidthChange({ target: { value: size } })}
+                            className={`flex-1 px-2 py-1 text-xs rounded transition-colors ${
+                                displayWidth === size
+                                    ? 'bg-primary/20 text-primary'
+                                    : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                            }`}
+                            type="button"
+                        >
+                            {size}%
+                        </button>
+                    ))}
+                </div>
             </div>
         </div>
     );
@@ -1007,122 +1373,200 @@ const ImageBubbleMenuContent = ({ editor }) => {
 const RichTextEditor = ({ content, onChange, className = '', editorClassName = '', variant = 'default' }) => {
     const [isAnnotationDialogOpen, setIsAnnotationDialogOpen] = useState(false);
     const [currentAnnotation, setCurrentAnnotation] = useState('');
+    const [isMindMapDialogOpen, setIsMindMapDialogOpen] = useState(false);
+    const [isQuizDialogOpen, setIsQuizDialogOpen] = useState(false);
+    const [editorError, setEditorError] = useState(null);
+    const onChangeRef = useRef(onChange);
+    
+    // 保持 onChange 引用最新
+    useEffect(() => {
+        onChangeRef.current = onChange;
+    }, [onChange]);
+    
+    // 防抖处理内容变更
+    const debouncedOnChange = useDebounce((markdown) => {
+        try {
+            if (onChangeRef.current) {
+                onChangeRef.current(markdown);
+            }
+        } catch (error) {
+            console.error('Error in onChange callback:', error);
+        }
+    }, 100);
+
+    // Memoize extensions 避免重复创建
+    const extensions = useMemo(() => [
+        StarterKit.configure({
+            hardBreak: false,
+            paragraph: false,
+            text: false,
+        }),
+        CustomText,
+        CustomHardBreak,
+        MarkdownParagraph,
+        Spoiler,
+        Annotation,
+        Callout,
+        ImageNode,
+        MindMapNode,
+        QuizNode,
+        TextStyle,
+        Color,
+        Highlight.configure({ multicolor: true }),
+        FontFamily,
+        FontSize,
+        TextAlign.configure({
+            types: ['heading', 'paragraph', 'image'],
+        }),
+        Underline,
+        Markdown.configure({
+            html: true,
+            transformPastedText: true,
+            transformCopiedText: true,
+        }),
+    ], []);
     
     const editor = useEditor({
-        extensions: [
-            StarterKit.configure({
-                hardBreak: false,
-                paragraph: false,
-                text: false,
-            }),
-            CustomText,
-            CustomHardBreak,
-            MarkdownParagraph,
-            Spoiler,
-            Annotation,
-            Callout,
-            ImageNode,
-            TextStyle,
-            Color,
-            Highlight.configure({ multicolor: true }),
-            FontFamily,
-            FontSize,
-            TextAlign.configure({
-                types: ['heading', 'paragraph', 'image'],
-            }),
-            Underline,
-            Markdown.configure({
-                html: true,
-                transformPastedText: true,
-                transformCopiedText: true,
-            }),
-        ],
+        extensions,
         content: content,
         editorProps: {
             attributes: {
                 class: `prose dark:prose-invert max-w-none focus:outline-none px-8 py-6 ${variant === 'seamless' ? 'min-h-[calc(100vh-200px)]' : 'min-h-[400px]'} ${editorClassName}`,
             },
             handleKeyDown(view, event) {
-                if (!editor) return false;
-                if (event.key === 'Tab') {
-                    if (editor.isActive('bulletList') || editor.isActive('orderedList')) {
-                        event.preventDefault();
-                        if (event.shiftKey) {
-                            editor.chain().focus().liftListItem('listItem').run();
-                        } else {
-                            editor.chain().focus().sinkListItem('listItem').run();
-                        }
-                        return true;
-                    }
-                    if (editor.isActive('codeBlock')) {
-                        event.preventDefault();
-                        editor.chain().focus().insertContent('    ').run();
-                        return true;
-                    }
-                    if (editor.isActive('paragraph')) {
-                        event.preventDefault();
+                try {
+                    if (!view || !event) return false;
+                    const editorInstance = view.state?.doc ? view : null;
+                    if (!editorInstance) return false;
+                    
+                    if (event.key === 'Tab') {
+                        // 使用 view.state 而不是 editor，避免闭包问题
                         const { state } = view;
-                        const { $from } = state.selection;
-                        const start = $from.start();
-                        const paragraph = $from.parent;
-                        const text = paragraph.textContent || '';
-                        const indentUnit = '\u00A0\u00A0\u00A0\u00A0';
-                        if (event.shiftKey) {
-                            if (text.startsWith(indentUnit)) {
-                                view.dispatch(state.tr.delete(start, start + indentUnit.length));
-                                return true;
+                        const { selection } = state;
+                        
+                        // 检查是否在列表中
+                        let inList = false;
+                        let inCodeBlock = false;
+                        let inParagraph = false;
+                        
+                        state.doc.nodesBetween(selection.from, selection.to, (node) => {
+                            if (node.type.name === 'bulletList' || node.type.name === 'orderedList') {
+                                inList = true;
                             }
-                            if (text.startsWith('\u00A0')) {
-                                let count = 0;
-                                while (text[count] === '\u00A0') {
-                                    count += 1;
-                                }
-                                if (count > 0) {
-                                    view.dispatch(state.tr.delete(start, start + count));
-                                }
-                                return true;
+                            if (node.type.name === 'codeBlock') {
+                                inCodeBlock = true;
                             }
+                            if (node.type.name === 'paragraph') {
+                                inParagraph = true;
+                            }
+                        });
+                        
+                        if (inCodeBlock) {
+                            event.preventDefault();
+                            const tr = state.tr.insertText('    ', selection.from, selection.to);
+                            view.dispatch(tr);
                             return true;
                         }
-                        view.dispatch(state.tr.insertText(indentUnit, start));
-                        return true;
+                        
+                        if (inParagraph && !inList) {
+                            event.preventDefault();
+                            const { $from } = selection;
+                            const start = $from.start();
+                            const paragraph = $from.parent;
+                            const text = paragraph.textContent || '';
+                            const indentUnit = '\u00A0\u00A0\u00A0\u00A0';
+                            
+                            if (event.shiftKey) {
+                                if (text.startsWith(indentUnit)) {
+                                    view.dispatch(state.tr.delete(start, start + indentUnit.length));
+                                    return true;
+                                }
+                                if (text.startsWith('\u00A0')) {
+                                    let count = 0;
+                                    while (text[count] === '\u00A0') {
+                                        count += 1;
+                                    }
+                                    if (count > 0) {
+                                        view.dispatch(state.tr.delete(start, start + count));
+                                    }
+                                    return true;
+                                }
+                                return true;
+                            }
+                            view.dispatch(state.tr.insertText(indentUnit, start));
+                            return true;
+                        }
                     }
+                } catch (error) {
+                    console.error('Error in handleKeyDown:', error);
                 }
                 return false;
             },
             handlePaste(view, event) {
-                const clipboardData = event.clipboardData || window.clipboardData;
-                if (!clipboardData) {
-                    return false;
-                }
-                const files = Array.from(clipboardData.files || []).filter((file) =>
-                    file.type.startsWith('image/')
-                );
-                if (files.length === 0) {
-                    return false;
-                }
-                event.preventDefault();
-                const file = files[0];
-                const reader = new FileReader();
-                reader.onload = () => {
-                    if (typeof reader.result === 'string' && editor) {
-                        const src = reader.result;
-                        editor.chain().focus().setImage({ src, alt: file.name }).run();
+                try {
+                    const clipboardData = event.clipboardData || window.clipboardData;
+                    if (!clipboardData) {
+                        return false;
                     }
-                };
-                reader.readAsDataURL(file);
-                return true;
+                    const files = Array.from(clipboardData.files || []).filter((file) =>
+                        file.type.startsWith('image/')
+                    );
+                    if (files.length === 0) {
+                        return false;
+                    }
+                    event.preventDefault();
+                    const file = files[0];
+                    
+                    // 文件大小检查 (最大 10MB)
+                    if (file.size > 10 * 1024 * 1024) {
+                        console.warn('Image too large. Maximum size is 10MB.');
+                        return true;
+                    }
+                    
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        try {
+                            if (typeof reader.result === 'string') {
+                                const { state } = view;
+                                const { tr } = state;
+                                const node = state.schema.nodes.image.create({
+                                    src: reader.result,
+                                    alt: file.name,
+                                });
+                                view.dispatch(tr.replaceSelectionWith(node));
+                            }
+                        } catch (error) {
+                            console.error('Error inserting image:', error);
+                        }
+                    };
+                    reader.onerror = () => {
+                        console.error('Error reading file');
+                    };
+                    reader.readAsDataURL(file);
+                    return true;
+                } catch (error) {
+                    console.error('Error in handlePaste:', error);
+                    return false;
+                }
             },
         },
         onUpdate: ({ editor }) => {
-            const markdown = editor.storage.markdown.getMarkdown();
-            const normalized = normalizeMathBackslashes(markdown);
-            onChange(normalized);
+            try {
+                const markdown = editor.storage.markdown?.getMarkdown() || '';
+                const normalized = normalizeMathBackslashes(markdown);
+                debouncedOnChange(normalized);
+            } catch (error) {
+                console.error('Error in onUpdate:', error);
+            }
+        },
+        onError: ({ error }) => {
+            console.error('Editor error:', error);
+            setEditorError(error);
         },
     });
 
     useEffect(() => {
-        if (editor && content !== editor.storage.markdown.getMarkdown()) {
+        if (editor && content !== editor.storage.markdown?.getMarkdown()) {
              // Sync content if needed, but avoiding loops
         }
     }, [content, editor]);
@@ -1186,6 +1630,30 @@ const RichTextEditor = ({ content, onChange, className = '', editorClassName = '
     const containerClass = variant === 'seamless'
         ? `bg-background transition-all ${className}`
         : `border border-border rounded-lg overflow-hidden bg-background focus-within:ring-1 focus-within:ring-ring transition-all ${className}`;
+
+    // 错误状态显示
+    if (editorError) {
+        return (
+            <div className={containerClass}>
+                <div className="flex flex-col items-center justify-center p-8 text-center">
+                    <XCircle className="w-12 h-12 text-destructive mb-4" />
+                    <h3 className="text-lg font-semibold text-foreground mb-2">编辑器加载失败</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                        请刷新页面重试，如果问题持续存在，请联系管理员。
+                    </p>
+                    <button
+                        onClick={() => {
+                            setEditorError(null);
+                            window.location.reload();
+                        }}
+                        className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                    >
+                        刷新页面
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className={containerClass}>
@@ -1294,7 +1762,15 @@ const RichTextEditor = ({ content, onChange, className = '', editorClassName = '
                 </>
             )}
 
-            <MenuBar editor={editor} />
+            <MenuBar 
+                editor={editor} 
+                onOpenAnnotation={(explanation) => {
+                    setCurrentAnnotation(explanation);
+                    setIsAnnotationDialogOpen(true);
+                }}
+                onOpenMindMap={() => setIsMindMapDialogOpen(true)}
+                onOpenQuiz={() => setIsQuizDialogOpen(true)}
+            />
             <div className="bg-background">
                 <EditorContent editor={editor} />
             </div>
@@ -1314,6 +1790,26 @@ const RichTextEditor = ({ content, onChange, className = '', editorClassName = '
                             // 如果内容为空，则移除批注
                             editor.chain().focus().unsetAnnotation().run();
                         }
+                    }
+                }}
+            />
+
+            <MindMapDialog
+                isOpen={isMindMapDialogOpen}
+                onClose={() => setIsMindMapDialogOpen(false)}
+                onConfirm={(data) => {
+                    if (editor) {
+                        editor.chain().focus().insertMindMap(data).run();
+                    }
+                }}
+            />
+
+            <QuizDialog
+                isOpen={isQuizDialogOpen}
+                onClose={() => setIsQuizDialogOpen(false)}
+                onConfirm={(data) => {
+                    if (editor) {
+                        editor.chain().focus().insertQuiz(data).run();
                     }
                 }}
             />

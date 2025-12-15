@@ -3,12 +3,13 @@ import {
     Plus, Trash2, Edit, Tag, X, FileText, Inbox, Search, MoreHorizontal, Check, 
     ArrowLeft, ArrowUpDown, Filter, Eye, Code as CodeIcon, Folder, 
     Settings, Save, PanelRightOpen, PanelRightClose, Calendar, Globe,
-    LayoutTemplate, Lock
+    LayoutTemplate, Lock, Loader2, AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api, { tagsApi, categoriesApi } from '../../lib/api';
 import MarkdownRenderer from '../../components/MarkdownRenderer';
 import RichTextEditor from '../../components/RichTextEditor';
+import Select from '../../components/Select';
 import Toast from '../../components/Toast';
 
 export const Posts = () => {
@@ -27,6 +28,8 @@ export const Posts = () => {
     const [tagPostSort, setTagPostSort] = useState('newest');
     const [tagPostSearch, setTagPostSearch] = useState('');
     const [categories, setCategories] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [loadError, setLoadError] = useState(null);
     const [newCategoryName, setNewCategoryName] = useState('');
     const [selectedCategoryIds, setSelectedCategoryIds] = useState([]);
     const [expandedCategoryId, setExpandedCategoryId] = useState(null);
@@ -48,6 +51,8 @@ export const Posts = () => {
     const currentPostRef = useRef(currentPost);
     const hasUnsavedChangesRef = useRef(hasUnsavedChanges);
     const autoSaveIntervalRef = useRef(null);
+    const autoSaveTimeoutRef = useRef(null);
+    const isAutoSavingRef = useRef(false);
 
     // Update refs whenever state changes
     useEffect(() => {
@@ -58,38 +63,33 @@ export const Posts = () => {
         hasUnsavedChangesRef.current = hasUnsavedChanges;
     }, [hasUnsavedChanges]);
 
-    // Auto-save timer
-    useEffect(() => {
-        if (isEditing) {
-            autoSaveIntervalRef.current = setInterval(async () => {
-                if (hasUnsavedChangesRef.current && currentPostRef.current.title) {
-                    await performAutoSave();
-                }
-            }, 30000); // 30s
-        }
-        return () => {
-            if (autoSaveIntervalRef.current) clearInterval(autoSaveIntervalRef.current);
-        };
-    }, [isEditing]);
-
-    const performAutoSave = async () => {
+    // 自动保存函数 - 使用useCallback稳定引用
+    const performAutoSave = useCallback(async () => {
+        // 防止并发自动保存
+        if (isAutoSavingRef.current) return;
+        
+        const post = currentPostRef.current;
+        // 验证必要字段
+        if (!post.title?.trim()) return;
+        
+        isAutoSavingRef.current = true;
         setAutoSaveStatus('saving');
+        
         try {
-            const post = currentPostRef.current;
             const postData = {
-                title: post.title,
-                summary: post.summary,
-                content: post.content,
-                published: post.published, // Keep current status
-                tags: post.tags || [],
-                categoryId: post.categoryId || null,
+                title: post.title.trim(),
+                summary: post.summary?.trim() || '',
+                content: post.content?.trim() || '',
+                published: post.published,
+                tags: (post.tags || []).filter(tag => tag && tag.trim()),
+                categoryId: post.categoryId ? parseInt(post.categoryId) : null,
                 accessLevel: post.accessLevel || 'regular'
             };
 
             if (post.id) {
                 await api.put(`/posts/${post.id}`, postData);
             } else {
-                // For new posts, create as draft first
+                // 新文章自动保存为草稿，但保留用户的发布状态意图
                 const res = await api.post('/posts', { ...postData, published: false });
                 setCurrentPost(prev => ({ ...prev, id: res.data.id }));
             }
@@ -98,42 +98,126 @@ export const Posts = () => {
             setAutoSaveStatus('saved');
             setHasUnsavedChanges(false);
             
-            // Revert status after 2s
-            setTimeout(() => setAutoSaveStatus(''), 2000);
+            // 3秒后清除状态提示
+            if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
+            autoSaveTimeoutRef.current = setTimeout(() => setAutoSaveStatus(''), 3000);
         } catch (err) {
-            console.error('Auto-save failed', err);
+            console.error('Auto-save failed:', err);
             setAutoSaveStatus('error');
+            // 错误状态保留更长时间
+            if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
+            autoSaveTimeoutRef.current = setTimeout(() => setAutoSaveStatus(''), 5000);
+        } finally {
+            isAutoSavingRef.current = false;
         }
-    };
+    }, []);
 
-    // Local Draft Saving
+    // Auto-save timer - 每30秒检查一次
+    useEffect(() => {
+        if (isEditing) {
+            autoSaveIntervalRef.current = setInterval(() => {
+                if (hasUnsavedChangesRef.current && currentPostRef.current.title?.trim()) {
+                    performAutoSave();
+                }
+            }, 30000);
+        }
+        return () => {
+            if (autoSaveIntervalRef.current) {
+                clearInterval(autoSaveIntervalRef.current);
+                autoSaveIntervalRef.current = null;
+            }
+            if (autoSaveTimeoutRef.current) {
+                clearTimeout(autoSaveTimeoutRef.current);
+                autoSaveTimeoutRef.current = null;
+            }
+        };
+    }, [isEditing, performAutoSave]);
+
+    // Local Draft Saving - 带有时间戳的草稿保存
+    const localDraftTimeoutRef = useRef(null);
+    
     useEffect(() => {
         if (isEditing && hasUnsavedChanges) {
+            // 清除之前的定时器
+            if (localDraftTimeoutRef.current) {
+                clearTimeout(localDraftTimeoutRef.current);
+            }
+            
             const draftKey = currentPost.id ? `draft_post_${currentPost.id}` : 'draft_post_new';
-            const timeoutId = setTimeout(() => {
-                localStorage.setItem(draftKey, JSON.stringify(currentPost));
-            }, 1000); // Debounce 1s
-            return () => clearTimeout(timeoutId);
+            localDraftTimeoutRef.current = setTimeout(() => {
+                try {
+                    const draftData = {
+                        ...currentPost,
+                        savedAt: new Date().toISOString()
+                    };
+                    localStorage.setItem(draftKey, JSON.stringify(draftData));
+                } catch (e) {
+                    console.error('Failed to save local draft:', e);
+                }
+            }, 1500); // 防抖 1.5s
         }
+        
+        return () => {
+            if (localDraftTimeoutRef.current) {
+                clearTimeout(localDraftTimeoutRef.current);
+            }
+        };
     }, [currentPost, isEditing, hasUnsavedChanges]);
 
-    // Restore Draft Logic (Simplified)
+    // Restore Draft Logic - 增强版
+    const draftRestoredRef = useRef(false);
+    
     useEffect(() => {
-        if (isEditing && !currentPost.id) {
-            const savedDraft = localStorage.getItem('draft_post_new');
-            if (savedDraft) {
-                try {
-                    const draft = JSON.parse(savedDraft);
-                    if (draft.title || draft.content) {
-                         // Only restore if current is empty (which it is on 'New')
-                         if (!currentPost.title && !currentPost.content) {
-                             setCurrentPost(prev => ({...prev, ...draft}));
-                             setHasUnsavedChanges(true);
-                             setMessage({ type: 'info', text: '已恢复未保存的草稿' });
-                         }
+        // 只在编辑模式且未恢复过时执行
+        if (!isEditing || draftRestoredRef.current) return;
+        
+        const draftKey = currentPost.id ? `draft_post_${currentPost.id}` : 'draft_post_new';
+        const savedDraft = localStorage.getItem(draftKey);
+        
+        if (savedDraft) {
+            try {
+                const draft = JSON.parse(savedDraft);
+                
+                // 检查草稿是否有内容
+                const hasContent = draft.title?.trim() || draft.content?.trim();
+                if (!hasContent) return;
+                
+                // 对于新文章，直接检查当前是否为空
+                if (!currentPost.id && !currentPost.title && !currentPost.content) {
+                    const savedTime = draft.savedAt ? new Date(draft.savedAt).toLocaleString() : '未知时间';
+                    
+                    // 显示确认对话框
+                    if (window.confirm(`发现未保存的草稿\n保存时间: ${savedTime}\n\n是否恢复？`)) {
+                        setCurrentPost(prev => ({
+                            ...prev,
+                            title: draft.title || '',
+                            summary: draft.summary || '',
+                            content: draft.content || '',
+                            published: draft.published ?? prev.published,
+                            tags: draft.tags || [],
+                            categoryId: draft.categoryId ?? null,
+                            accessLevel: draft.accessLevel || 'regular'
+                        }));
+                        setHasUnsavedChanges(true);
+                        setMessage({ type: 'info', text: '已恢复本地草稿' });
+                    } else {
+                        // 用户拒绝恢复，清除草稿
+                        localStorage.removeItem(draftKey);
                     }
-                } catch (e) { console.error(e); }
+                }
+                
+                draftRestoredRef.current = true;
+            } catch (e) {
+                console.error('Failed to parse draft:', e);
+                localStorage.removeItem(draftKey);
             }
+        }
+    }, [isEditing, currentPost.id]);
+    
+    // 重置草稿恢复标记
+    useEffect(() => {
+        if (!isEditing) {
+            draftRestoredRef.current = false;
         }
     }, [isEditing]);
 
@@ -149,6 +233,46 @@ export const Posts = () => {
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }, [isEditing, hasUnsavedChanges]);
 
+    // 键盘快捷键支持
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (!isEditing) return;
+            
+            // Ctrl/Cmd + S: 保存
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                if (!isSaving) {
+                    handleSubmit();
+                }
+            }
+            
+            // Esc: 返回列表（需要确认）
+            if (e.key === 'Escape') {
+                // 只在没有打开对话框时触发
+                if (document.activeElement?.tagName !== 'INPUT' && 
+                    document.activeElement?.tagName !== 'TEXTAREA' &&
+                    !document.activeElement?.closest('[role="dialog"]')) {
+                    if (hasUnsavedChanges) {
+                        if (window.confirm('您有未保存的更改，确定要离开吗？')) {
+                            setIsEditing(false);
+                        }
+                    } else {
+                        setIsEditing(false);
+                    }
+                }
+            }
+            
+            // Ctrl/Cmd + Shift + P: 切换发布状态
+            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'p') {
+                e.preventDefault();
+                updatePostState(prev => ({ ...prev, published: !prev.published }));
+            }
+        };
+        
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isEditing, isSaving, hasUnsavedChanges]);
+
     const clearDraft = (id) => {
         const draftKey = id ? `draft_post_${id}` : 'draft_post_new';
         localStorage.removeItem(draftKey);
@@ -157,36 +281,38 @@ export const Posts = () => {
 
 
     useEffect(() => {
-        fetchPosts();
-        fetchTags();
-        fetchCategories();
+        const loadData = async () => {
+            setIsLoading(true);
+            setLoadError(null);
+            try {
+                await Promise.all([fetchPosts(), fetchTags(), fetchCategories()]);
+            } catch (err) {
+                setLoadError('加载数据失败，请刷新页面重试');
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        loadData();
     }, [activeTab, searchTerm]);
 
     const fetchPosts = async () => {
-        try {
-            const res = await api.get('/posts/admin/all', { params: { published: activeTab === 'posts' ? 'true' : activeTab === 'drafts' ? 'false' : undefined, search: searchTerm || undefined, categoryId: activeTab === 'categories' ? undefined : undefined } });
-            setPosts(res.data);
-        } catch (err) {
-            console.error(err);
-        }
+        const res = await api.get('/posts/admin/all', { 
+            params: { 
+                published: activeTab === 'posts' ? 'true' : activeTab === 'drafts' ? 'false' : undefined, 
+                search: searchTerm || undefined 
+            } 
+        });
+        setPosts(res.data);
     };
 
     const fetchTags = async () => {
-        try {
-            const res = await tagsApi.getAll({ search: searchTerm || undefined });
-            setTags(res.data);
-        } catch (err) {
-            console.error(err);
-        }
+        const res = await tagsApi.getAll({ search: searchTerm || undefined });
+        setTags(res.data);
     };
 
     const fetchCategories = async () => {
-        try {
-            const res = await categoriesApi.getAll({ search: searchTerm || undefined });
-            setCategories(res.data);
-        } catch (err) {
-            console.error(err);
-        }
+        const res = await categoriesApi.getAll({ search: searchTerm || undefined });
+        setCategories(res.data);
     };
 
     const activePosts = activeTab === 'drafts'
@@ -333,22 +459,36 @@ export const Posts = () => {
     const handleSubmit = async (e) => {
         if (e) e.preventDefault();
         setMessage({ type: '', text: '' });
-        setIsSaving(true);
         
-        if (!currentPost.content || !currentPost.content.trim()) {
-            setMessage({ type: 'error', text: '文章内容不能为空' });
-            setIsSaving(false);
+        // 表单验证
+        const title = currentPost.title?.trim();
+        const content = currentPost.content?.trim();
+        
+        if (!title) {
+            setMessage({ type: 'error', text: '文章标题不能为空' });
             return;
         }
+        
+        if (title.length > 200) {
+            setMessage({ type: 'error', text: '文章标题不能超过200个字符' });
+            return;
+        }
+        
+        if (!content) {
+            setMessage({ type: 'error', text: '文章内容不能为空' });
+            return;
+        }
+        
+        setIsSaving(true);
 
         try {
             const postData = {
-                title: currentPost.title,
-                summary: currentPost.summary,
-                content: currentPost.content,
+                title: title,
+                summary: currentPost.summary?.trim() || '',
+                content: content,
                 published: currentPost.published,
-                tags: currentPost.tags || [],
-                categoryId: currentPost.categoryId || null,
+                tags: (currentPost.tags || []).filter(tag => tag && tag.trim()),
+                categoryId: currentPost.categoryId ? parseInt(currentPost.categoryId) : null,
                 accessLevel: currentPost.accessLevel || 'regular'
             };
 
@@ -370,7 +510,8 @@ export const Posts = () => {
             fetchTags();
             fetchCategories();
         } catch (err) {
-            setMessage({ type: 'error', text: '保存失败' });
+            const errorMsg = err?.response?.data?.message || err.message || '保存失败';
+            setMessage({ type: 'error', text: errorMsg });
         } finally {
             setIsSaving(false);
         }
@@ -483,7 +624,7 @@ export const Posts = () => {
                             key={tab.id}
                             onClick={() => { setActiveTab(tab.id); setIsEditing(false); }}
                             className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === tab.id
-                                ? 'bg-background text-foreground shadow-sm'
+                                ? 'bg-background text-foreground'
                                 : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
                                 }`}
                         >
@@ -519,7 +660,7 @@ export const Posts = () => {
                                 setIsEditing(true); 
                                 setHasUnsavedChanges(false);
                             }}
-                            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm whitespace-nowrap"
+                            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors whitespace-nowrap"
                         >
                             <Plus size={16} /> 新建
                         </button>
@@ -546,29 +687,70 @@ export const Posts = () => {
                                         setIsEditing(false);
                                     }} 
                                     className="p-2 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
-                                    title="返回列表"
+                                    title="返回列表 (Esc)"
                                 >
                                     <ArrowLeft size={20} />
                                 </button>
                                 <div className="text-sm text-muted-foreground flex items-center gap-2">
                                     <span className="font-medium text-foreground">{currentPost.id ? '编辑文章' : '新建文章'}</span>
-                                    <span className="text-xs opacity-60 ml-2">
-                                        {autoSaveStatus === 'saving' ? '保存中...' : 
-                                         autoSaveStatus === 'saved' ? '已自动保存' :
-                                         hasUnsavedChanges ? '未保存' : 
-                                         lastSaved ? `已保存 ${lastSaved.toLocaleTimeString()}` : ''}
-                                    </span>
+                                    {currentPost.id && (
+                                        <span className="text-xs text-muted-foreground/60">#{currentPost.id}</span>
+                                    )}
+                                    <div className="flex items-center gap-1.5 ml-2">
+                                        {autoSaveStatus === 'saving' && (
+                                            <span className="flex items-center gap-1 text-xs text-blue-500">
+                                                <span className="animate-spin">⚡</span> 保存中...
+                                            </span>
+                                        )}
+                                        {autoSaveStatus === 'saved' && (
+                                            <span className="flex items-center gap-1 text-xs text-green-500">
+                                                <Check size={12} /> 已自动保存
+                                            </span>
+                                        )}
+                                        {autoSaveStatus === 'error' && (
+                                            <span className="flex items-center gap-1 text-xs text-destructive">
+                                                ⚠️ 自动保存失败
+                                            </span>
+                                        )}
+                                        {!autoSaveStatus && hasUnsavedChanges && (
+                                            <span className="flex items-center gap-1 text-xs text-amber-500">
+                                                ● 未保存
+                                            </span>
+                                        )}
+                                        {!autoSaveStatus && !hasUnsavedChanges && lastSaved && (
+                                            <span className="text-xs text-muted-foreground/60">
+                                                已保存 {lastSaved.toLocaleTimeString()}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                             
                             <div className="flex items-center gap-2">
-                                <button
-                                    onClick={() => setViewMode(viewMode === 'rich' ? 'markdown' : 'rich')}
-                                    className={`p-2 rounded-md transition-colors ${viewMode !== 'rich' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
-                                    title={viewMode === 'rich' ? "切换到 Markdown 源码" : "切换到富文本编辑器"}
-                                >
-                                    {viewMode === 'rich' ? <CodeIcon size={18} /> : <Edit size={18} />}
-                                </button>
+                                {/* 编辑模式切换按钮组 */}
+                                <div className="flex items-center bg-muted/50 rounded-md p-0.5">
+                                    <button
+                                        onClick={() => setViewMode('rich')}
+                                        className={`p-1.5 rounded-md transition-colors ${viewMode === 'rich' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                                        title="富文本编辑器"
+                                    >
+                                        <Edit size={16} />
+                                    </button>
+                                    <button
+                                        onClick={() => setViewMode('markdown')}
+                                        className={`p-1.5 rounded-md transition-colors ${viewMode === 'markdown' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                                        title="Markdown 源码"
+                                    >
+                                        <CodeIcon size={16} />
+                                    </button>
+                                    <button
+                                        onClick={() => setViewMode('preview')}
+                                        className={`p-1.5 rounded-md transition-colors ${viewMode === 'preview' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                                        title="预览"
+                                    >
+                                        <Eye size={16} />
+                                    </button>
+                                </div>
                                 
                                 <div className="h-4 w-px bg-border mx-1" />
 
@@ -576,6 +758,7 @@ export const Posts = () => {
                                     onClick={() => handleSubmit()}
                                     disabled={isSaving}
                                     className="flex items-center gap-2 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+                                    title="保存文章 (⌘S / Ctrl+S)"
                                 >
                                     {isSaving ? <span className="animate-spin text-xs">⏳</span> : <Save size={16} />}
                                     保存
@@ -584,7 +767,7 @@ export const Posts = () => {
                                 <button
                                     onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                                     className={`p-2 rounded-md transition-colors ${isSidebarOpen ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
-                                    title="文章设置"
+                                    title="文章设置 (侧边栏)"
                                 >
                                     {isSidebarOpen ? <PanelRightClose size={20} /> : <PanelRightOpen size={20} />}
                                 </button>
@@ -596,33 +779,47 @@ export const Posts = () => {
                             {/* Editor */}
                             <div className="flex-1 overflow-y-auto scrollbar-thin">
                                 <div className="max-w-none w-full mx-auto py-8 px-8 min-h-full flex flex-col">
-                                    <input
-                                        type="text"
-                                        placeholder="无标题"
-                                        className="w-full bg-transparent text-4xl sm:text-5xl font-bold placeholder:text-muted-foreground/30 border-none outline-none focus:ring-0 px-0 mb-8"
-                                        value={currentPost.title}
-                                        onChange={(e) => updatePostState({ ...currentPost, title: e.target.value })}
-                                    />
-                                    
-                                    <div className="flex-1">
-                                        {viewMode === 'markdown' ? (
-                                            <textarea
-                                                placeholder="在此输入 Markdown 内容..."
-                                                className="w-full h-full min-h-[500px] bg-transparent text-base font-mono placeholder:text-muted-foreground/30 border-none outline-none focus:ring-0 resize-none leading-relaxed"
-                                                value={currentPost.content}
-                                                onChange={(e) => updatePostState({ ...currentPost, content: e.target.value })}
+                                    {/* 预览模式 */}
+                                    {viewMode === 'preview' ? (
+                                        <div className="prose dark:prose-invert max-w-none">
+                                            <h1 className="text-4xl font-bold mb-8">{currentPost.title || '无标题'}</h1>
+                                            {currentPost.summary && (
+                                                <p className="text-muted-foreground text-lg mb-6 italic">{currentPost.summary}</p>
+                                            )}
+                                            <MarkdownRenderer content={currentPost.content || '*暂无内容*'} />
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <input
+                                                type="text"
+                                                placeholder="无标题"
+                                                className="w-full bg-transparent text-4xl sm:text-5xl font-bold placeholder:text-muted-foreground/30 border-none outline-none focus:ring-0 px-0 mb-8"
+                                                value={currentPost.title}
+                                                onChange={(e) => updatePostState({ ...currentPost, title: e.target.value })}
+                                                maxLength={200}
                                             />
-                                        ) : (
-                                            <RichTextEditor
-                                                key={currentPost.id || 'new'}
-                                                content={currentPost.content}
-                                                onChange={(newContent) => updatePostState({ ...currentPost, content: newContent })}
-                                                variant="seamless"
-                                                editorClassName="px-0 min-h-[calc(100vh-300px)]"
-                                                className="-mx-1" // Negative margin to compensate for any slight misalignment or focus rings if needed, or just to pull it slightly if padding issues arise. But wait, if I use px-0, I don't need negative margin.
-                                            />
-                                        )}
-                                    </div>
+                                            
+                                            <div className="flex-1">
+                                                {viewMode === 'markdown' ? (
+                                                    <textarea
+                                                        placeholder="在此输入 Markdown 内容..."
+                                                        className="w-full h-full min-h-[500px] bg-transparent text-base font-mono placeholder:text-muted-foreground/30 border-none outline-none focus:ring-0 resize-none leading-relaxed"
+                                                        value={currentPost.content}
+                                                        onChange={(e) => updatePostState({ ...currentPost, content: e.target.value })}
+                                                    />
+                                                ) : (
+                                                    <RichTextEditor
+                                                        key={currentPost.id || 'new'}
+                                                        content={currentPost.content}
+                                                        onChange={(newContent) => updatePostState({ ...currentPost, content: newContent })}
+                                                        variant="seamless"
+                                                        editorClassName="px-0 min-h-[calc(100vh-300px)]"
+                                                        className="-mx-1"
+                                                    />
+                                                )}
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
 
@@ -659,19 +856,21 @@ export const Posts = () => {
                                             <div className="space-y-3">
                                                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">分类</h3>
                                                  <div className="relative">
-                                                    <Folder className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
-                                                    <select
+                                                    <Folder className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10 pointer-events-none" size={14} />
+                                                    <Select
                                                         value={currentPost.categoryId || ''}
-                                                        onChange={(e) => updatePostState({ ...currentPost, categoryId: e.target.value ? parseInt(e.target.value) : null })}
-                                                        className="w-full bg-background border border-border text-sm rounded-lg pl-9 pr-3 py-2 outline-none focus:ring-1 focus:ring-primary appearance-none"
-                                                    >
-                                                        <option value="">未选择分类</option>
-                                                        {categories.map((c) => (
-                                                            <option key={c.id} value={c.id}>
-                                                                {Array(c.level && c.level > 1 ? c.level - 1 : 0).fill('— ').join('')}{c.name}
-                                                            </option>
-                                                        ))}
-                                                    </select>
+                                                        onChange={(val) => updatePostState({ ...currentPost, categoryId: val ? parseInt(val) : null })}
+                                                        options={[
+                                                            { value: '', label: '未选择分类' },
+                                                            ...categories.map(c => ({
+                                                                value: c.id,
+                                                                label: `${Array(c.level && c.level > 1 ? c.level - 1 : 0).fill('— ').join('')}${c.name}`
+                                                            }))
+                                                        ]}
+                                                        placeholder="未选择分类"
+                                                        className="w-full"
+                                                        triggerClassName="pl-9"
+                                                    />
                                                 </div>
                                             </div>
 
@@ -679,16 +878,19 @@ export const Posts = () => {
                                             <div className="space-y-3">
                                                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">访问权限</h3>
                                                 <div className="relative">
-                                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
-                                                    <select
+                                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10 pointer-events-none" size={14} />
+                                                    <Select
                                                         value={currentPost.accessLevel || 'regular'}
-                                                        onChange={(e) => updatePostState({ ...currentPost, accessLevel: e.target.value })}
-                                                        className="w-full bg-background border border-border text-sm rounded-lg pl-9 pr-3 py-2 outline-none focus:ring-1 focus:ring-primary appearance-none"
-                                                    >
-                                                        <option value="regular">公开 (普通用户)</option>
-                                                        <option value="plus">Plus 会员专享</option>
-                                                        <option value="pro">Pro 会员专享</option>
-                                                    </select>
+                                                        onChange={(val) => updatePostState({ ...currentPost, accessLevel: val })}
+                                                        options={[
+                                                            { value: 'regular', label: '公开 (普通用户)' },
+                                                            { value: 'plus', label: 'Plus 会员专享' },
+                                                            { value: 'pro', label: 'Pro 会员专享' }
+                                                        ]}
+                                                        placeholder="公开 (普通用户)"
+                                                        className="w-full"
+                                                        triggerClassName="pl-9"
+                                                    />
                                                 </div>
                                             </div>
 
@@ -758,45 +960,79 @@ export const Posts = () => {
                     <>
                         {(activeTab === 'posts' || activeTab === 'drafts') && (
                             <div className="space-y-4">
-                                <div className="grid gap-2 2xl:grid-cols-2 3xl:grid-cols-3">
-                                    {filteredPosts.length === 0 ? (
-                                        <div className="text-center py-12 border border-dashed border-border rounded-lg text-muted-foreground">
-                                            暂无文章
-                                        </div>
-                                    ) : (
-                                        filteredPosts.map(post => (
-                                            <div
-                                                key={post.id}
-                                                className="group bg-card border border-border p-4 rounded-lg hover:border-primary/50 transition-all flex justify-between items-center"
-                                            >
-                                                <div className="space-y-1">
-                                                    <div className="flex items-center gap-3">
-                                                        <input type="checkbox" checked={selectedPostIds.includes(post.id)} onChange={(e) => toggleSelectPost(post.id, e.target.checked)}
-                                                            className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
-                                                        />
-                                                        <h3 className="font-medium text-foreground text-sm">{post.title}</h3>
-                                                        {post.tags && post.tags.length > 0 && (
-                                                            <div className="flex gap-1.5">
-                                                                {post.tags.map(tag => (
-                                                                    <span key={tag.id} className="bg-secondary px-1.5 py-0.5 rounded text-[10px] text-secondary-foreground">
-                                                                        #{tag.name}
-                                                                    </span>
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                        {post.category && (
-                                                            <div className="flex gap-1.5">
-                                                                <span className="bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded text-[10px] text-blue-500">
+                                {/* Loading 状态 */}
+                                {isLoading && (
+                                    <div className="flex items-center justify-center py-12">
+                                        <Loader2 className="animate-spin text-primary" size={24} />
+                                        <span className="ml-2 text-muted-foreground">加载中...</span>
+                                    </div>
+                                )}
+                                
+                                {/* Error 状态 */}
+                                {loadError && !isLoading && (
+                                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                                        <AlertCircle className="text-destructive mb-2" size={32} />
+                                        <p className="text-destructive">{loadError}</p>
+                                        <button 
+                                            onClick={() => { fetchPosts(); fetchTags(); fetchCategories(); }}
+                                            className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm"
+                                        >
+                                            重新加载
+                                        </button>
+                                    </div>
+                                )}
+                                
+                                {/* 文章列表 */}
+                                {!isLoading && !loadError && (
+                                    <div className="grid gap-2 2xl:grid-cols-2 3xl:grid-cols-3">
+                                        {filteredPosts.length === 0 ? (
+                                            <div className="text-center py-12 border border-dashed border-border rounded-lg text-muted-foreground col-span-full">
+                                                {searchTerm ? '没有找到匹配的文章' : '暂无文章'}
+                                            </div>
+                                        ) : (
+                                            filteredPosts.map(post => (
+                                                <div
+                                                    key={post.id}
+                                                    className="group bg-card border border-border p-4 rounded-lg hover:border-primary/50 transition-all flex justify-between items-center"
+                                                >
+                                                    <div className="space-y-1 min-w-0 flex-1">
+                                                        <div className="flex items-center gap-3 flex-wrap">
+                                                            <input type="checkbox" checked={selectedPostIds.includes(post.id)} onChange={(e) => toggleSelectPost(post.id, e.target.checked)}
+                                                                className="w-4 h-4 rounded border-border text-primary focus:ring-primary shrink-0"
+                                                            />
+                                                            <h3 className="font-medium text-foreground text-sm truncate max-w-[200px] sm:max-w-none" title={post.title}>{post.title}</h3>
+                                                            {post.accessLevel && post.accessLevel !== 'regular' && (
+                                                                <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] ${
+                                                                    post.accessLevel === 'pro' 
+                                                                        ? 'bg-purple-500/10 text-purple-500 border border-purple-500/20' 
+                                                                        : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
+                                                                }`}>
+                                                                    {post.accessLevel.toUpperCase()}
+                                                                </span>
+                                                            )}
+                                                            {post.tags && post.tags.length > 0 && (
+                                                                <div className="flex gap-1.5 flex-wrap">
+                                                                    {post.tags.slice(0, 3).map(tag => (
+                                                                        <span key={tag.id} className="bg-secondary px-1.5 py-0.5 rounded text-[10px] text-secondary-foreground">
+                                                                            #{tag.name}
+                                                                        </span>
+                                                                    ))}
+                                                                    {post.tags.length > 3 && (
+                                                                        <span className="text-[10px] text-muted-foreground">+{post.tags.length - 3}</span>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                            {post.category && (
+                                                                <span className="shrink-0 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded text-[10px] text-blue-500">
                                                                     {post.category.name}
                                                                 </span>
-                                                            </div>
-                                                        )}
+                                                            )}
+                                                        </div>
+                                                        <div className="flex items-center gap-4 pl-7 text-xs text-muted-foreground font-mono">
+                                                            <span>{new Date(post.createdAt).toLocaleDateString()}</span>
+                                                        </div>
                                                     </div>
-                                                    <div className="flex items-center gap-4 pl-7 text-xs text-muted-foreground font-mono">
-                                                        <span>{new Date(post.createdAt).toLocaleDateString()}</span>
-                                                    </div>
-                                                </div>
-                                                <div className="flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                                                    <div className="flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity shrink-0 ml-2">
                                                     <button
                                                         onClick={() => handleEditPost(post)}
                                                         className="p-1.5 hover:bg-secondary rounded-md text-muted-foreground hover:text-foreground transition-colors"
@@ -812,8 +1048,9 @@ export const Posts = () => {
                                                 </div>
                                             </div>
                                         ))
-                                    )}
-                                </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )}
 

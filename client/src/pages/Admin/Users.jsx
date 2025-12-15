@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Search, Shield, UserPlus, UserMinus, Trash2, Crown } from 'lucide-react'
+import Select from '../../components/Select'
 import { adminApi } from '../../lib/api'
 import Toast from '../../components/Toast'
 import Loading from '../../components/Loading'
@@ -193,7 +194,7 @@ const AdminUsers = () => {
         onClose={() => setMessage({ type: '', text: '' })} 
       />
 
-      <div className="p-4 md:p-6 bg-card rounded-lg border border-border shadow-sm space-y-4">
+      <div className="p-4 md:p-6 bg-card rounded-lg border border-border space-y-4">
         <div className="flex items-center gap-2">
           <Search size={16} className="text-muted-foreground" />
           <input
@@ -220,16 +221,28 @@ const AdminUsers = () => {
           >批量撤销编辑</button>
           <div className="ml-auto flex items-center gap-2">
             <label className="text-xs text-muted-foreground">排序</label>
-            <select value={order} onChange={(e) => setOrder(e.target.value)} className="bg-background border border-border rounded-md px-2 py-1 text-xs">
-              <option value="desc">创建时间倒序</option>
-              <option value="asc">创建时间正序</option>
-            </select>
+            <Select
+              value={order}
+              onChange={setOrder}
+              options={[
+                { value: 'desc', label: '创建时间倒序' },
+                { value: 'asc', label: '创建时间正序' }
+              ]}
+              className="w-32"
+              triggerClassName="text-xs py-1 h-8"
+            />
             <label className="text-xs text-muted-foreground">每页</label>
-            <select value={pageSize} onChange={(e) => { setPage(1); setPageSize(parseInt(e.target.value)) }} className="bg-background border border-border rounded-md px-2 py-1 text-xs">
-              <option value="10">10</option>
-              <option value="20">20</option>
-              <option value="50">50</option>
-            </select>
+            <Select
+              value={pageSize.toString()}
+              onChange={(val) => { setPage(1); setPageSize(parseInt(val)) }}
+              options={[
+                { value: '10', label: '10' },
+                { value: '20', label: '20' },
+                { value: '50', label: '50' }
+              ]}
+              className="w-20"
+              triggerClassName="text-xs py-1 h-8"
+            />
           </div>
         </div>
 
@@ -276,16 +289,18 @@ const AdminUsers = () => {
                             {u.role === 'editor' ? '撤销编辑' : '设为编辑'}
                           </button>
                           
-                          <select 
+                          <Select 
                             value={u.membershipType || 'regular'} 
-                            onChange={(e) => updateMembership(u.id, e.target.value)}
+                            onChange={(val) => updateMembership(u.id, val)}
                             disabled={busyId === u.id}
-                            className="px-2 py-1 bg-background border border-border rounded-md text-xs"
-                          >
-                            <option value="regular">普通会员</option>
-                            <option value="plus">Plus会员</option>
-                            <option value="pro">Pro会员</option>
-                          </select>
+                            options={[
+                              { value: 'regular', label: '普通会员' },
+                              { value: 'plus', label: 'Plus会员' },
+                              { value: 'pro', label: 'Pro会员' }
+                            ]}
+                            className="w-28"
+                            triggerClassName="text-xs py-1 h-8"
+                          />
 
                           {passwordEditId === u.id ? null : (
                             <button

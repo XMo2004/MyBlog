@@ -17,11 +17,11 @@ const NavNode = ({ node, activeId, onSelect, level = 0, expandedNodes, onToggle 
     return (
         <div className="select-none">
             <div
-                className={`group flex items-center gap-2 py-1.5 px-3 mx-2 rounded-md cursor-pointer transition-all duration-200 ${isActive
-                    ? 'bg-primary/10 text-primary font-medium'
+                className={`group flex items-center gap-2 py-2 px-3 mx-2 rounded-lg cursor-pointer transition-all duration-200 border border-transparent ${isActive
+                    ? 'bg-primary/10 text-primary font-medium shadow-sm'
                     : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                     }`}
-                style={{ paddingLeft: `${level * 12 + 12}px` }}
+                style={{ paddingLeft: `${level * 16 + 12}px` }}
                 onClick={(e) => {
                     e.stopPropagation();
                     if (isFolder) {
@@ -47,7 +47,9 @@ const NavNode = ({ node, activeId, onSelect, level = 0, expandedNodes, onToggle 
             </div>
 
             {isFolder && isExpanded && hasChildren && (
-                <div className="mt-0.5">
+                <div className="mt-1 relative">
+                    {/* Optional: Add a vertical guide line for nested items */}
+                    {/* <div className="absolute left-5 top-0 bottom-0 w-px bg-border/50" style={{ left: `${level * 12 + 18}px` }} /> */}
                     {node.children.map(child => (
                         <NavNode
                             key={child.id}
@@ -144,9 +146,34 @@ export const ColumnDetail = () => {
         }
     };
 
+    // 辅助函数：递归查找父节点链
+    const findParentIds = (tree, targetId, path = []) => {
+        for (const node of tree) {
+            if (node.id === targetId) {
+                return path;
+            }
+            if (node.children && node.children.length > 0) {
+                const result = findParentIds(node.children, targetId, [...path, node.id]);
+                if (result) return result;
+            }
+        }
+        return null;
+    };
+
     const handleNodeSelect = (node) => {
         setActiveNode(node);
         setSearchParams({ nodeId: node.id });
+        // 自动展开父节点链（仅当为 category 或 post 时都适用）
+        if (column && column.tree) {
+            const parentIds = findParentIds(column.tree, node.id) || [];
+            setExpandedNodes(prev => {
+                // 保证所有父节点都在 expandedNodes
+                const merged = new Set([...prev, ...parentIds]);
+                // 选中的是文件夹自身也要展开
+                if (node.type === 'category') merged.add(node.id);
+                return Array.from(merged);
+            });
+        }
         if (window.innerWidth < 1024) {
             setMobileMenuOpen(false);
         }
@@ -175,8 +202,8 @@ export const ColumnDetail = () => {
 
             {/* Sidebar */}
             <aside 
-                className={`fixed md:relative z-50 h-full bg-card border-r border-border transition-all duration-300 flex flex-col
-                    ${mobileMenuOpen ? 'translate-x-0 w-80' : '-translate-x-full md:translate-x-0'}
+                className={`fixed md:relative z-50 h-full bg-background/50 backdrop-blur-xl border-r border-border/40 transition-all duration-300 flex flex-col
+                    ${mobileMenuOpen ? 'translate-x-0 w-80 shadow-2xl' : '-translate-x-full md:translate-x-0'}
                     ${isSidebarOpen ? 'md:w-80 2xl:w-96' : 'md:w-0 overflow-hidden'}
                 `}
             >
@@ -187,13 +214,13 @@ export const ColumnDetail = () => {
 
                     <div className="h-full min-h-0 flex flex-col w-full">
                         {/* Header Actions */}
-                        <div className="absolute top-2 right-2 lg:static lg:flex lg:justify-between lg:items-center lg:p-4 lg:pb-2">
-                            <span className="hidden lg:block font-semibold text-sm text-muted-foreground pl-2">
+                        <div className="absolute top-2 right-2 lg:static lg:flex lg:justify-between lg:items-center lg:px-4 lg:py-3 lg:mb-2">
+                            <span className="hidden lg:block font-bold text-sm text-foreground/80 pl-2 tracking-wide uppercase opacity-70">
                                 Contents
                             </span>
                             <button
                                 onClick={() => setIsSidebarOpen(false)}
-                                className="hidden lg:block p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors"
+                                className="hidden lg:block p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
                                 title="Collapse Sidebar"
                             >
                                 <PanelLeftClose size={18} />
@@ -226,7 +253,7 @@ export const ColumnDetail = () => {
                 {/* Mobile Toggle */}
                 <button
                     onClick={() => setMobileMenuOpen(true)}
-                    className="lg:hidden absolute top-4 left-4 p-2 bg-background border border-border rounded-lg text-muted-foreground z-10"
+                    className="lg:hidden absolute top-4 left-4 p-2 bg-background/50 backdrop-blur-md hover:bg-background border border-border/50 rounded-lg text-muted-foreground transition-all z-10"
                 >
                     <Menu size={20} />
                 </button>
@@ -235,29 +262,29 @@ export const ColumnDetail = () => {
                 {!isSidebarOpen && (
                     <button
                         onClick={() => setIsSidebarOpen(true)}
-                        className="hidden lg:flex absolute top-6 left-6 p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-all z-10"
+                        className="hidden lg:flex absolute top-6 left-6 p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-all z-10"
                         title="Expand Sidebar"
                     >
                         <PanelLeftOpen size={20} />
                     </button>
                 )}
 
-                <div className="max-w-4xl 2xl:max-w-6xl 3xl:max-w-[1400px] mx-auto min-h-full pb-32">
+                <div className="max-w-4xl 2xl:max-w-6xl 3xl:max-w-[1400px] mx-auto min-h-full pb-32 pt-10 px-6 lg:px-12">
                     {!activeNode ? (
-                        <div className="animate-fade-in">
-                            <h1 className="text-4xl font-bold mb-6 text-transparent bg-clip-text bg-linear-to-r from-primary to-purple-400">
+                        <div className="animate-fade-in max-w-3xl">
+                            <h1 className="text-4xl md:text-5xl font-extrabold mb-6 text-foreground tracking-tight leading-tight">
                                 {column.title}
                             </h1>
-                            <div className="flex items-center gap-4 text-sm text-muted-foreground mb-8">
-                                <span className="flex items-center gap-1">
+                            <div className="flex flex-wrap items-center gap-6 text-sm text-muted-foreground mb-10 border-b border-border/40 pb-6">
+                                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/50">
                                     <Clock size={14} /> {column.readTime}
                                 </span>
-                                <span className="flex items-center gap-1">
+                                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/50">
                                     <Calendar size={14} /> {format(new Date(column.updatedAt), 'MMM d, yyyy')}
                                 </span>
                             </div>
-                            <div className="prose dark:prose-invert max-w-none 2xl:prose-xl">
-                                <p className="text-xl text-muted-foreground leading-relaxed mb-8">
+                            <div className="prose dark:prose-invert max-w-none prose-lg text-muted-foreground/90 leading-relaxed">
+                                <p className="text-xl leading-8 mb-8">
                                     {column.description}
                                 </p>
                                 {/* Show table of contents summary maybe? */}
@@ -265,31 +292,38 @@ export const ColumnDetail = () => {
                         </div>
                     ) : activeNode.type === 'category' ? (
                         <div className="animate-fade-in">
-                            <h2 className="text-3xl font-bold mb-6 flex items-center gap-3">
-                                <Folder className="text-primary" />
+                            <h2 className="text-3xl font-bold mb-8 flex items-center gap-3 text-foreground/90">
+                                <Folder className="text-primary/80" size={32} />
                                 {activeNode.title}
                             </h2>
-                            <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+                            <div className="grid gap-6 md:grid-cols-2 2xl:grid-cols-3">
                                 {activeNode.children && activeNode.children.length > 0 ? (
                                     activeNode.children.map(child => (
                                         <div
                                             key={child.id}
                                             onClick={() => handleNodeSelect(child)}
-                                            className="p-4 bg-card border border-border rounded-lg cursor-pointer hover:border-primary/50 transition-colors group"
+                                            className="p-6 bg-card/50 hover:bg-card border border-border/50 hover:border-border rounded-xl cursor-pointer transition-all duration-300 group hover:shadow-lg hover:-translate-y-1"
                                         >
-                                            <div className="flex items-center gap-3">
-                                                {child.type === 'category' ? (
-                                                    <Folder className="text-primary group-hover:scale-110 transition-transform" />
-                                                ) : (
-                                                    <FileText className="text-muted-foreground group-hover:scale-110 transition-transform" />
-                                                )}
-                                                <div>
-                                                    <h3 className="font-semibold group-hover:text-primary transition-colors">
+                                            <div className="flex items-start gap-4">
+                                                <div className="p-3 rounded-lg bg-primary/5 text-primary group-hover:bg-primary/10 transition-colors">
+                                                    {child.type === 'category' ? (
+                                                        <Folder size={24} />
+                                                    ) : (
+                                                        <FileText size={24} />
+                                                    )}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <h3 className="font-semibold text-lg text-foreground mb-2 group-hover:text-primary transition-colors truncate">
                                                         {child.title}
                                                     </h3>
                                                     {child.post && (
-                                                        <p className="text-sm text-muted-foreground mt-1 line-clamp-1">
+                                                        <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
                                                             {child.post.summary || 'No summary available'}
+                                                        </p>
+                                                    )}
+                                                    {child.type === 'category' && (
+                                                        <p className="text-sm text-muted-foreground">
+                                                            {child.children?.length || 0} items
                                                         </p>
                                                     )}
                                                 </div>
@@ -297,7 +331,9 @@ export const ColumnDetail = () => {
                                         </div>
                                     ))
                                 ) : (
-                                    <p className="text-muted-foreground italic">Empty folder</p>
+                                    <div className="col-span-full py-12 text-center border-2 border-dashed border-border/50 rounded-xl">
+                                        <p className="text-muted-foreground">This folder is empty</p>
+                                    </div>
                                 )}
                             </div>
                         </div>
@@ -305,22 +341,32 @@ export const ColumnDetail = () => {
                         <div className="animate-fade-in flex gap-6 lg:gap-10">
                             <div className="flex-1 min-w-0">
                                 {loadingPost ? (
-                                    <div className="space-y-4">
-                                        <div className="h-8 bg-muted rounded w-3/4 animate-pulse"></div>
-                                        <div className="h-4 bg-muted rounded w-1/2 animate-pulse"></div>
-                                        <div className="h-64 bg-muted rounded w-full animate-pulse"></div>
+                                    <div className="space-y-6 max-w-3xl">
+                                        <div className="h-12 bg-muted/50 rounded-lg w-3/4 animate-pulse"></div>
+                                        <div className="h-6 bg-muted/50 rounded-lg w-1/2 animate-pulse"></div>
+                                        <div className="h-96 bg-muted/50 rounded-xl w-full animate-pulse"></div>
                                     </div>
                                 ) : postContent ? (
-                                    <div>
-                                        <h1 className="text-3xl font-bold mb-4">{postContent.title}</h1>
-                                        <div className="flex items-center gap-4 text-sm text-muted-foreground mb-8 pb-8 border-b border-border">
-                                            <span>{format(new Date(postContent.createdAt), 'MMM d, yyyy')}</span>
-                                            {postContent.author && <span>by {postContent.author.username}</span>}
+                                    <div className="max-w-4xl">
+                                        <h1 className="text-3xl md:text-4xl font-extrabold mb-6 text-foreground tracking-tight leading-snug">
+                                            {postContent.title}
+                                        </h1>
+                                        <div className="flex items-center gap-6 text-sm text-muted-foreground mb-10 pb-8 border-b border-border/40">
+                                            <span className="flex items-center gap-2">
+                                                <Calendar size={14} />
+                                                {format(new Date(postContent.createdAt), 'MMM d, yyyy')}
+                                            </span>
+                                            {postContent.author && (
+                                                <span className="flex items-center gap-2">
+                                                    <div className="w-1 h-1 rounded-full bg-muted-foreground/50" />
+                                                    {postContent.author.username}
+                                                </span>
+                                            )}
                                         </div>
-                                        <MarkdownRenderer content={postContent.content} className="article-content prose-lg 2xl:prose-xl max-w-none" />
+                                        <MarkdownRenderer content={postContent.content} className="article-content prose-lg dark:prose-invert max-w-none" />
                                     </div>
                                 ) : (
-                                    <div className="text-center py-20">
+                                    <div className="text-center py-20 bg-muted/10 rounded-2xl border border-dashed border-border/50">
                                         <p className="text-muted-foreground">Post content not available</p>
                                     </div>
                                 )}
@@ -333,13 +379,13 @@ export const ColumnDetail = () => {
                 <>
                     <button
                         onClick={() => setIsTocOpen(prev => !prev)}
-                        className="fixed right-6 top-28 sm:top-32 z-40 flex items-center gap-2 px-3 py-2 rounded-full bg-background/80 backdrop-blur-md border border-border/40 shadow-lg text-sm text-muted-foreground hover:text-foreground hover:bg-background/90 transition-all"
+                        className="fixed right-6 top-24 sm:top-28 z-40 flex items-center gap-2 px-4 py-2 rounded-full bg-background/60 backdrop-blur-xl border border-border/30 shadow-sm hover:shadow-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-background transition-all"
                     >
                         {isTocOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
                         <span className="hidden sm:inline">目录</span>
                     </button>
                     <div
-                        className={`fixed top-24 bottom-6 right-6 z-30 w-72 sm:w-80 bg-background/80 backdrop-blur-md border border-border/40 shadow-2xl rounded-2xl transform transition-all duration-300 ${
+                        className={`fixed top-24 bottom-6 right-6 z-30 w-72 sm:w-80 bg-background/90 backdrop-blur-xl border border-border/30 shadow-2xl rounded-2xl transform transition-all duration-300 ${
                             isTocOpen ? 'translate-x-0 opacity-100' : 'translate-x-[120%] opacity-0'
                         }`}
                     >

@@ -32,6 +32,9 @@ const AdminTools = React.lazy(() => import('./pages/Admin/Tools'));
 const Admins = React.lazy(() => import('./pages/Admin/Admins'));
 const AdminUsers = React.lazy(() => import('./pages/Admin/Users'));
 const AdminWeight = React.lazy(() => import('./pages/Admin/Weight'));
+const AdminComments = React.lazy(() => import('./pages/Admin/Comments'));
+const AdminAnalytics = React.lazy(() => import('./pages/Admin/Analytics'));
+const AdminCategories = React.lazy(() => import('./pages/Admin/Categories'));
 
 const VisitTracker = () => {
   const location = useLocation();
@@ -95,6 +98,9 @@ function App() {
             <Route path="admins" element={<Admins />} />
             <Route path="users" element={<AdminUsers />} />
             <Route path="weight" element={<AdminWeight />} />
+            <Route path="comments" element={<AdminComments />} />
+            <Route path="analytics" element={<AdminAnalytics />} />
+            <Route path="categories" element={<AdminCategories />} />
           </Route>
         </Routes>
         </Suspense>

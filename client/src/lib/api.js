@@ -75,10 +75,12 @@ export const columnsApi = {
 
 export const adminApi = {
     getStats: () => api.get('/admin/stats'),
+    getHealth: () => api.get('/admin/health'),
     listBackups: () => api.get('/admin/backups'),
     backup: () => api.post('/admin/backup'),
     restore: (file) => api.post('/admin/restore', { file }),
     logs: (params) => api.get('/admin/logs', { params }),
+    exportLogs: (params) => api.get('/admin/logs/export', { params, responseType: 'blob' }),
     me: () => api.get('/admin/me'),
     updateMe: (data) => api.put('/admin/me', data),
     listUsers: (params) => api.get('/admin/users', { params }),
@@ -111,6 +113,8 @@ export const categoriesApi = {
 
 export const visitApi = {
     record: (data) => api.post('/visit', data),
+    getAnalytics: (params) => api.get('/visit/analytics', { params }),
+    getRecentVisits: (params) => api.get('/visit/recent', { params }),
 };
 
 export const weightApi = {
@@ -128,6 +132,11 @@ export const dietApi = {
 
 export const commentsApi = {
     toggleLike: (id) => api.post(`/comments/${id}/like`),
+    // 管理员接口
+    getAll: (params) => api.get('/comments/admin/all', { params }),
+    getStats: () => api.get('/comments/admin/stats'),
+    delete: (id) => api.delete(`/comments/admin/${id}`),
+    bulkDelete: (ids) => api.post('/comments/admin/bulk-delete', { ids }),
 };
 
 export default api;

@@ -67,7 +67,7 @@ const AdminSettings = () => {
                     whileTap={{ scale: 0.98 }}
                     onClick={handleSubmit}
                     disabled={isSaving}
-                    className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
                     <Save size={16} />
                     {isSaving ? '保存中...' : '保存更改'}
@@ -82,7 +82,7 @@ const AdminSettings = () => {
 
             {/* Settings Form */}
             <form onSubmit={handleSubmit} className="space-y-6 max-w-4xl 2xl:max-w-5xl 3xl:max-w-6xl mx-auto">
-                <div className="p-4 md:p-6 bg-card rounded-lg border border-border shadow-sm space-y-4">
+                <div className="p-4 md:p-6 bg-card rounded-lg border border-border space-y-4">
                     <h2 className="text-lg font-semibold flex items-center gap-2 text-foreground">
                         <Globe size={18} className="text-primary" />
                         基础信息
@@ -113,7 +113,7 @@ const AdminSettings = () => {
                     </div>
                 </div>
 
-                <div className="p-4 md:p-6 bg-card rounded-lg border border-border shadow-sm space-y-4">
+                <div className="p-4 md:p-6 bg-card rounded-lg border border-border space-y-4">
                     <h2 className="text-lg font-semibold flex items-center gap-2 text-foreground">
                         <Type size={18} className="text-primary" />
                         首页展示
@@ -142,7 +142,7 @@ const AdminSettings = () => {
                     </div>
                 </div>
 
-                <div className="p-4 md:p-6 bg-card rounded-lg border border-border shadow-sm space-y-4">
+                <div className="p-4 md:p-6 bg-card rounded-lg border border-border space-y-4">
                     <h2 className="text-lg font-semibold flex items-center gap-2 text-foreground">
                         <Signature size={18} className="text-primary" />
                         个性化

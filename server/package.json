@@ -7,10 +7,18 @@
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
     "test": "node create-admin.js && node --test",
-    "build": "npx prisma generate"
+    "build": "npx prisma generate",
+    "db:generate": "npx prisma generate",
+    "db:push": "npx prisma db push",
+    "db:migrate": "npx prisma migrate dev",
+    "db:migrate:prod": "npx prisma migrate deploy",
+    "db:studio": "npx prisma studio",
+    "db:export": "node scripts/export-sqlite-data.js",
+    "db:import": "node scripts/import-to-postgres.js",
+    "db:backup": "node scripts/backup-postgres.js",
+    "db:restore": "node scripts/restore-postgres.js"
   },
   "dependencies": {
-    "@prisma/client": "^5.7.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
@@ -18,12 +26,14 @@
     "express-rate-limit": "^8.2.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
+    "pg": "^8.11.3",
     "svg-captcha": "^1.4.0",
-    "uuid": "^13.0.0"
+    "uuid": "^13.0.0",
+    "@prisma/client": "^5.10.0"
   },
   "devDependencies": {
     "better-sqlite3": "^12.5.0",
     "nodemon": "^3.0.2",
-    "prisma": "^5.7.0"
+    "prisma": "^5.10.0"
   }
 }

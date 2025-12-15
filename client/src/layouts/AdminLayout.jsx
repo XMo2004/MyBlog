@@ -12,7 +12,11 @@ import {
     Folder,
     Link as LinkIcon,
     BookOpen,
-    Scale
+    Scale,
+    MessageSquare,
+    BarChart3,
+    Tags,
+    Users
 } from 'lucide-react';
 import { ThemeToggle } from '../components/ThemeToggle';
 import useTheme from '../components/useTheme';
@@ -97,6 +101,18 @@ export const AdminLayout = () => {
                                 isActive={location.pathname.includes('/dashboard/posts')}
                             />
                             <SidebarItem
+                                icon={Tags}
+                                label="分类管理"
+                                path="/dashboard/categories"
+                                isActive={location.pathname === '/dashboard/categories'}
+                            />
+                            <SidebarItem
+                                icon={MessageSquare}
+                                label="评论管理"
+                                path="/dashboard/comments"
+                                isActive={location.pathname === '/dashboard/comments'}
+                            />
+                            <SidebarItem
                                 icon={User}
                                 label="个人资料"
                                 path="/dashboard/profile"
@@ -133,6 +149,12 @@ export const AdminLayout = () => {
                                 系统
                             </p>
                             <SidebarItem
+                                icon={BarChart3}
+                                label="访问统计"
+                                path="/dashboard/analytics"
+                                isActive={location.pathname === '/dashboard/analytics'}
+                            />
+                            <SidebarItem
                                 icon={Settings}
                                 label="设置"
                                 path="/dashboard/settings"
@@ -151,7 +173,7 @@ export const AdminLayout = () => {
                                 isActive={location.pathname === '/dashboard/admins'}
                             />
                             <SidebarItem
-                                icon={User}
+                                icon={Users}
                                 label="用户与角色"
                                 path="/dashboard/users"
                                 isActive={location.pathname === '/dashboard/users'}

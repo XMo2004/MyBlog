@@ -414,7 +414,7 @@ const Weight = () => {
                 <div className="lg:col-span-4 xl:col-span-3">
                     <div className="space-y-6 sticky top-6">
                         {/* Weight Input Card */}
-                        <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
+                        <div className="bg-card border border-border rounded-xl p-5">
                             <h2 className="text-base font-semibold mb-4 flex items-center text-card-foreground">
                                 <Scale size={18} className="mr-2 text-primary" />
                                 记录体重
@@ -450,7 +450,7 @@ const Weight = () => {
                                 </div>
                                 <button
                                     type="submit"
-                                    className="w-full bg-primary text-primary-foreground py-2 text-sm rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center font-medium shadow-sm active:scale-[0.98]"
+                                    className="w-full bg-primary text-primary-foreground py-2 text-sm rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center font-medium active:scale-[0.98]"
                                 >
                                     <Save size={16} className="mr-2" /> 保存
                                 </button>
@@ -458,7 +458,7 @@ const Weight = () => {
                         </div>
 
                         {/* Diet Input Card */}
-                        <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
+                        <div className="bg-card border border-border rounded-xl p-5">
                             <div className="flex items-center justify-between mb-4">
                                 <h2 className="text-base font-semibold flex items-center text-card-foreground">
                                     <Utensils size={18} className="mr-2 text-primary" />
@@ -489,7 +489,7 @@ const Weight = () => {
                                                 onClick={() => handleDietChange('timeSlot', slot.key)}
                                                 className={`px-1 py-1.5 text-xs rounded-md border transition-all ${
                                                     dietForm.timeSlot === slot.key
-                                                        ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                                                        ? 'bg-primary text-primary-foreground border-primary'
                                                         : 'bg-muted text-muted-foreground border-border hover:text-foreground'
                                                 }`}
                                             >
@@ -597,7 +597,7 @@ const Weight = () => {
                                 {dietError && <p className="text-xs text-destructive">{dietError}</p>}
                                 <button
                                     type="submit"
-                                    className="w-full bg-primary text-primary-foreground py-2 text-sm rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center font-medium shadow-sm active:scale-[0.98]"
+                                    className="w-full bg-primary text-primary-foreground py-2 text-sm rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center font-medium active:scale-[0.98]"
                                 >
                                     <Save size={16} className="mr-2" />
                                     {editingDietId ? '更新记录' : '添加记录'}
@@ -613,7 +613,7 @@ const Weight = () => {
                     {/* 1. Overview Cards */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                         {/* Weight Card */}
-                        <div className="bg-card border border-border rounded-xl p-5 shadow-sm flex items-center justify-between">
+                        <div className="bg-card border border-border rounded-xl p-5 flex items-center justify-between">
                             <div>
                                 <p className="text-xs font-medium text-muted-foreground mb-1">最新体重</p>
                                 <div className="flex items-baseline gap-2">
@@ -634,7 +634,7 @@ const Weight = () => {
                         </div>
 
                         {/* Calories Card */}
-                        <div className="bg-card border border-border rounded-xl p-5 shadow-sm flex items-center justify-between">
+                        <div className="bg-card border border-border rounded-xl p-5 flex items-center justify-between">
                             <div>
                                 <p className="text-xs font-medium text-muted-foreground mb-1">今日热量 ({dietDate})</p>
                                 <div className="flex items-baseline gap-2">
@@ -656,7 +656,7 @@ const Weight = () => {
                         </div>
 
                         {/* Nutrition Summary Card */}
-                        <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
+                        <div className="bg-card border border-border rounded-xl p-5">
                             <p className="text-xs font-medium text-muted-foreground mb-2">营养分布</p>
                             <div className="grid grid-cols-3 gap-2">
                                 <div className="text-center p-1.5 bg-muted/50 rounded-lg">
@@ -678,7 +678,7 @@ const Weight = () => {
                     {/* 2. Charts Section */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                          {/* Meal Calories Bar Chart */}
-                         <div className="bg-card border border-border rounded-xl p-5 shadow-sm h-64 flex flex-col">
+                         <div className="bg-card border border-border rounded-xl p-5 h-64 flex flex-col">
                             <h3 className="text-sm font-semibold mb-4 text-card-foreground">餐次热量分布</h3>
                             <div className="flex-1 w-full min-h-0">
                                 {mealCaloriesData.length > 0 ? (
@@ -705,7 +705,7 @@ const Weight = () => {
                         </div>
 
                         {/* Macros Pie Chart */}
-                        <div className="bg-card border border-border rounded-xl p-5 shadow-sm h-64 flex flex-col">
+                        <div className="bg-card border border-border rounded-xl p-5 h-64 flex flex-col">
                             <h3 className="text-sm font-semibold mb-4 text-card-foreground">三大营养素占比</h3>
                             <div className="flex-1 w-full min-h-0">
                                 {macroChartData.length > 0 ? (
@@ -734,7 +734,7 @@ const Weight = () => {
                     </div>
 
                     {/* 3. Records Tabs */}
-                    <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden min-h-[500px]">
+                    <div className="bg-card border border-border rounded-xl overflow-hidden min-h-[500px]">
                         <div className="border-b border-border px-6 py-3 flex items-center gap-6">
                             <button
                                 onClick={() => setActiveTab('diet')}

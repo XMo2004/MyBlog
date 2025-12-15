@@ -145,11 +145,33 @@ exports.getPostById = async (req, res) => {
 exports.createPost = async (req, res) => {
     try {
         const { title, content, published, tags, categories, summary, categoryId, accessLevel } = req.body;
-        if (!title || !content) return res.status(400).json({ message: 'Invalid post data' })
+        
+        // 输入验证
+        if (!title || typeof title !== 'string' || !title.trim()) {
+            return res.status(400).json({ message: '文章标题不能为空' });
+        }
+        
+        if (title.trim().length > 200) {
+            return res.status(400).json({ message: '文章标题不能超过200个字符' });
+        }
+        
+        if (!content || typeof content !== 'string' || !content.trim()) {
+            return res.status(400).json({ message: '文章内容不能为空' });
+        }
+        
+        // 验证 accessLevel
+        const validAccessLevels = ['regular', 'plus', 'pro'];
+        const safeAccessLevel = validAccessLevels.includes(accessLevel) ? accessLevel : 'regular';
 
         let tagData = [];
         if (tags && Array.isArray(tags)) {
-            tagData = tags.map(tag => ({
+            // 过滤空标签并限制数量
+            const validTags = tags
+                .filter(tag => typeof tag === 'string' && tag.trim())
+                .map(tag => tag.trim().slice(0, 50)) // 标签最大 50 字符
+                .slice(0, 20); // 最多 20 个标签
+            
+            tagData = validTags.map(tag => ({
                 where: { name: tag },
                 create: { name: tag }
             }));
@@ -169,14 +191,14 @@ exports.createPost = async (req, res) => {
         }
 
         const data = {
-            title,
-            content,
+            title: title.trim(),
+            content: content.trim(),
             published: !!published,
             authorId: req.user.userId,
             categoryId: catId ?? null,
-            accessLevel: accessLevel || 'regular'
+            accessLevel: safeAccessLevel
         }
-        if (typeof summary !== 'undefined') data.summary = summary ?? null
+        if (typeof summary !== 'undefined') data.summary = summary ? summary.trim().slice(0, 500) : null
         if (tagData && tagData.length > 0) {
             data.tags = { connectOrCreate: tagData }
         }
@@ -194,9 +216,15 @@ exports.updatePost = async (req, res) => {
         const { id } = req.params;
         const { title, content, published, tags, categories, summary, categoryId, accessLevel } = req.body;
 
+        // 验证 ID
+        const postId = parseInt(id);
+        if (isNaN(postId) || postId <= 0) {
+            return res.status(400).json({ message: '无效的文章ID' });
+        }
+
         // Check ownership
         const existingPost = await prisma.post.findUnique({
-            where: { id: parseInt(id) },
+            where: { id: postId },
             include: { tags: true, category: true }
         });
         if (!existingPost) return res.status(404).json({ message: 'Post not found' });
@@ -205,16 +233,44 @@ exports.updatePost = async (req, res) => {
         }
 
         const updateData = {}
-        if (typeof title !== 'undefined') updateData.title = title
-        if (typeof content !== 'undefined') updateData.content = content
+        
+        // 验证并清理输入
+        if (typeof title !== 'undefined') {
+            if (typeof title !== 'string' || !title.trim()) {
+                return res.status(400).json({ message: '文章标题不能为空' });
+            }
+            if (title.trim().length > 200) {
+                return res.status(400).json({ message: '文章标题不能超过200个字符' });
+            }
+            updateData.title = title.trim();
+        }
+        
+        if (typeof content !== 'undefined') {
+            if (typeof content !== 'string') {
+                return res.status(400).json({ message: '无效的文章内容' });
+            }
+            updateData.content = content.trim();
+        }
+        
         if (typeof published !== 'undefined') updateData.published = !!published
-        if (typeof summary !== 'undefined') updateData.summary = summary ?? null
-        if (typeof accessLevel !== 'undefined') updateData.accessLevel = accessLevel
+        if (typeof summary !== 'undefined') updateData.summary = summary ? summary.trim().slice(0, 500) : null
+        
+        // 验证 accessLevel
+        if (typeof accessLevel !== 'undefined') {
+            const validAccessLevels = ['regular', 'plus', 'pro'];
+            updateData.accessLevel = validAccessLevels.includes(accessLevel) ? accessLevel : 'regular';
+        }
 
         if (tags && Array.isArray(tags)) {
+            // 过滤空标签并限制数量
+            const validTags = tags
+                .filter(tag => typeof tag === 'string' && tag.trim())
+                .map(tag => tag.trim().slice(0, 50))
+                .slice(0, 20);
+            
             const currentTagNames = existingPost.tags.map(t => t.name);
-            const tagsToDisconnect = currentTagNames.filter(name => !tags.includes(name));
-            const tagsToConnect = tags.filter(name => !currentTagNames.includes(name));
+            const tagsToDisconnect = currentTagNames.filter(name => !validTags.includes(name));
+            const tagsToConnect = validTags.filter(name => !currentTagNames.includes(name));
 
             updateData.tags = {
                 disconnect: tagsToDisconnect.map(name => ({ name })),
@@ -225,24 +281,29 @@ exports.updatePost = async (req, res) => {
             };
         }
 
-        if (categoryId || (categories && Array.isArray(categories))) {
+        if (typeof categoryId !== 'undefined' || (categories && Array.isArray(categories))) {
             let catId = null
-            if (categoryId) {
-                catId = parseInt(categoryId)
+            if (categoryId !== undefined && categoryId !== null && categoryId !== '') {
+                const parsedCatId = parseInt(categoryId);
+                if (!isNaN(parsedCatId) && parsedCatId > 0) {
+                    catId = parsedCatId;
+                }
             } else if (categories && categories.length > 0) {
-                const firstCat = categories[0]
-                const cat = await prisma.category.upsert({
-                    where: { name: firstCat },
-                    update: {},
-                    create: { name: firstCat }
-                })
-                catId = cat.id
+                const firstCat = String(categories[0]).trim();
+                if (firstCat) {
+                    const cat = await prisma.category.upsert({
+                        where: { name: firstCat },
+                        update: {},
+                        create: { name: firstCat }
+                    })
+                    catId = cat.id
+                }
             }
-            updateData.categoryId = catId || null
+            updateData.categoryId = catId
         }
 
         const post = await prisma.post.update({
-            where: { id: parseInt(id) },
+            where: { id: postId },
             data: updateData,
             include: { tags: true, category: true }
         });

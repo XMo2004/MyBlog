@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Trash2, Edit2, BookOpen, Search, X, Layers, Code, Folder, Lightbulb, Wrench, Rocket } from 'lucide-react';
+import Select from '../../components/Select';
 import { columnsApi } from '../../lib/api';
 import Toast from '../../components/Toast';
 import Loading from '../../components/Loading';
@@ -152,7 +153,7 @@ const AdminColumns = () => {
                         )}
                         <button
                             onClick={() => { handleCancel(); setIsEditing(true); }}
-                            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm whitespace-nowrap"
+                            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors whitespace-nowrap"
                         >
                             <Plus size={16} /> 新建
                         </button>
@@ -166,7 +167,7 @@ const AdminColumns = () => {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 10 }}
-                        className="bg-card p-4 md:p-6 rounded-lg border border-border shadow-sm"
+                        className="bg-card p-4 md:p-6 rounded-lg border border-border"
                     >
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-lg font-semibold">{formData.id ? '编辑专栏' : '新建专栏'}</h2>
@@ -202,18 +203,18 @@ const AdminColumns = () => {
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium">颜色主题</label>
-                                        <select
-                                            name="color"
+                                        <Select
                                             value={formData.color}
-                                            onChange={handleChange}
-                                            className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                                        >
-                                            <option value="blue">蓝色 (Blue)</option>
-                                            <option value="green">绿色 (Green)</option>
-                                            <option value="purple">紫色 (Purple)</option>
-                                            <option value="orange">橙色 (Orange)</option>
-                                            <option value="red">红色 (Red)</option>
-                                        </select>
+                                            onChange={(val) => setFormData(prev => ({ ...prev, color: val }))}
+                                            options={[
+                                                { value: 'blue', label: '蓝色 (Blue)' },
+                                                { value: 'green', label: '绿色 (Green)' },
+                                                { value: 'purple', label: '紫色 (Purple)' },
+                                                { value: 'orange', label: '橙色 (Orange)' },
+                                                { value: 'red', label: '红色 (Red)' }
+                                            ]}
+                                            className="w-full"
+                                        />
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium">图标</label>
@@ -235,16 +236,12 @@ const AdminColumns = () => {
                                         </div>
                                         {iconMode === 'preset' ? (
                                             <div className="flex items-center gap-3">
-                                                <select
-                                                    name="icon"
+                                                <Select
                                                     value={formData.icon}
-                                                    onChange={handleChange}
-                                                    className="flex-1 bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                                                >
-                                                    {iconOptions.map((name) => (
-                                                        <option key={name} value={name}>{name}</option>
-                                                    ))}
-                                                </select>
+                                                    onChange={(val) => setFormData(prev => ({ ...prev, icon: val }))}
+                                                    options={iconOptions.map((name) => ({ value: name, label: name }))}
+                                                    className="flex-1"
+                                                />
                                                 {(() => {
                                                     const SelectedIcon = iconComponents[formData.icon] || BookOpen;
                                                     return (
@@ -270,15 +267,15 @@ const AdminColumns = () => {
                                 <div className="space-y-4">
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium">状态</label>
-                                        <select
-                                            name="status"
+                                        <Select
                                             value={formData.status}
-                                            onChange={handleChange}
-                                            className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                                        >
-                                            <option value="Active">活跃 (Active)</option>
-                                            <option value="Archived">归档 (Archived)</option>
-                                        </select>
+                                            onChange={(val) => setFormData(prev => ({ ...prev, status: val }))}
+                                            options={[
+                                                { value: 'Active', label: '活跃 (Active)' },
+                                                { value: 'Archived', label: '归档 (Archived)' }
+                                            ]}
+                                            className="w-full"
+                                        />
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium">排序权重</label>
@@ -327,7 +324,7 @@ const AdminColumns = () => {
                                 </button>
                                 <button
                                     type="submit"
-                                    className="px-6 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm"
+                                    className="px-6 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
                                 >
                                     {formData.id ? '更新专栏' : '创建专栏'}
                                 </button>
@@ -343,10 +340,10 @@ const AdminColumns = () => {
                                 className="group bg-card border border-border p-5 rounded-lg hover:border-primary/50 transition-all flex flex-col justify-between h-full relative"
                             >
                                 <div className="absolute top-4 right-4 flex gap-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity z-10">
-                                    <button onClick={() => handleEdit(column)} className="p-1.5 bg-background border border-border hover:bg-secondary rounded-md text-muted-foreground hover:text-foreground transition-colors shadow-sm">
+                                    <button onClick={() => handleEdit(column)} className="p-1.5 bg-background border border-border hover:bg-secondary rounded-md text-muted-foreground hover:text-foreground transition-colors">
                                         <Edit2 size={14} />
                                     </button>
-                                    <button onClick={() => handleDelete(column.id)} className="p-1.5 bg-background border border-border hover:bg-destructive/10 rounded-md text-muted-foreground hover:text-destructive transition-colors shadow-sm">
+                                    <button onClick={() => handleDelete(column.id)} className="p-1.5 bg-background border border-border hover:bg-destructive/10 rounded-md text-muted-foreground hover:text-destructive transition-colors">
                                         <Trash2 size={14} />
                                     </button>
                                 </div>

@@ -204,16 +204,16 @@
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-muted;
+  @apply bg-transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-muted-foreground/30 rounded-full hover:bg-muted-foreground/50 transition-colors;
+  @apply bg-muted-foreground/20 rounded-full hover:bg-muted-foreground/40 transition-colors;
 }
 
 /* Annotation styles - Click trigger with glassmorphism */
@@ -290,4 +290,42 @@
   border-bottom: 1.5px dotted hsl(var(--primary) / 0.5);
   cursor: help;
   padding: 0 2px;
+}
+
+/* MindMap Styles */
+.mindmap-container {
+  background: 
+    radial-gradient(circle at 50% 50%, hsl(var(--primary) / 0.03) 0%, transparent 50%),
+    linear-gradient(90deg, hsl(var(--border) / 0.1) 1px, transparent 1px),
+    linear-gradient(180deg, hsl(var(--border) / 0.1) 1px, transparent 1px);
+  background-size: 100% 100%, 20px 20px, 20px 20px;
+}
+
+.mindmap-container .latex-content {
+  display: inline;
+}
+
+.mindmap-container .latex-content .katex {
+  font-size: 0.9em;
+}
+
+/* Quiz Styles */
+.quiz-option-enter {
+  opacity: 0;
+  transform: translateX(-10px);
+}
+
+.quiz-option-enter-active {
+  opacity: 1;
+  transform: translateX(0);
+  transition: all 0.2s ease-out;
+}
+
+.quiz-option-exit {
+  opacity: 1;
+}
+
+.quiz-option-exit-active {
+  opacity: 0;
+  transition: opacity 0.15s ease-in;
 }

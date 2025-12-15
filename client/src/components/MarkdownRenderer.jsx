@@ -13,6 +13,8 @@ import { twMerge } from 'tailwind-merge';
 import { Check, Copy, Hash, Info, AlertTriangle, AlertCircle, CheckCircle, Lightbulb, Terminal } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Mermaid from './Mermaid';
+import MindMap from './MindMap';
+import Quiz from './Quiz';
 
 const fontSettings = {
   fontFamily: 'Menlo, Monaco, Consolas, "Andale Mono", "Ubuntu Mono", "Courier New", monospace',
@@ -121,6 +123,33 @@ const useIsDarkTheme = () => {
 
 const ZoomImage = ({ src, alt, ...props }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+
+  // 解析 data 属性获取宽度和对齐方式
+  const dataWidth = props['data-width'];
+  const dataAlign = props['data-align'];
+  
+  const width = dataWidth ? parseInt(dataWidth, 10) : 100;
+  const align = dataAlign || 'center';
+
+  // 计算对齐样式
+  const getAlignmentStyle = () => {
+    const baseStyle = {
+      display: 'block',
+      maxWidth: `${Math.min(Math.max(width, 10), 100)}%`,
+    };
+    
+    switch (align) {
+      case 'left':
+        return { ...baseStyle, marginLeft: 0, marginRight: 'auto' };
+      case 'right':
+        return { ...baseStyle, marginLeft: 'auto', marginRight: 0 };
+      case 'center':
+      default:
+        return { ...baseStyle, marginLeft: 'auto', marginRight: 'auto' };
+    }
+  };
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -138,20 +167,64 @@ const ZoomImage = ({ src, alt, ...props }) => {
     };
   }, [isOpen]);
 
+  const handleImageLoad = () => {
+    setIsLoading(false);
+    setHasError(false);
+  };
+
+  const handleImageError = () => {
+    setIsLoading(false);
+    setHasError(true);
+  };
+
+  // 移除 data 属性，避免传递到 DOM
+  const { 'data-width': _, 'data-align': __, style: existingStyle, ...cleanProps } = props;
+
   return (
     <>
       <div
         className="my-8 relative group cursor-zoom-in"
-        onClick={() => setIsOpen(true)}
+        onClick={() => !hasError && setIsOpen(true)}
+        style={getAlignmentStyle()}
       >
-        <img
-          src={src}
-          alt={alt}
-          className="rounded-xl shadow-lg mx-auto max-h-[600px] object-contain border border-border/50 bg-card"
-          loading="lazy"
-          {...props}
-        />
-        {alt && (
+        {isLoading && !hasError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-muted/30 rounded-xl">
+            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+        {hasError ? (
+          <div className="flex flex-col items-center justify-center p-12 bg-muted/20 rounded-xl border border-dashed border-border">
+            <svg 
+              className="w-12 h-12 text-muted-foreground/50 mb-3" 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={1.5} 
+                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" 
+              />
+            </svg>
+            <span className="text-sm text-muted-foreground">图片加载失败</span>
+            {alt && <span className="text-xs text-muted-foreground/70 mt-1">{alt}</span>}
+          </div>
+        ) : (
+          <img
+            src={src}
+            alt={alt || ''}
+            onLoad={handleImageLoad}
+            onError={handleImageError}
+            className={`rounded-xl shadow-lg max-h-[600px] object-contain border border-border/50 bg-card transition-opacity duration-200 ${
+              isLoading ? 'opacity-0' : 'opacity-100'
+            }`}
+            style={{ width: '100%' }}
+            loading="lazy"
+            {...cleanProps}
+          />
+        )}
+        {alt && !hasError && (
           <span className="block text-center text-sm text-muted-foreground mt-2">
             {alt}
           </span>
@@ -196,6 +269,16 @@ const CodeBlock = ({ language, children, ...props }) => {
 
   if (language === 'mermaid') {
     return <Mermaid chart={String(children)} />;
+  }
+
+  // 思维导图渲染
+  if (language === 'mindmap') {
+    return <MindMap data={String(children).trim()} readOnly={true} />;
+  }
+
+  // 选择题渲染
+  if (language === 'quiz') {
+    return <Quiz data={String(children).trim()} />;
   }
 
   const lang = language?.toLowerCase() || '';
@@ -410,6 +493,48 @@ const CalloutBlock = ({ className, children, ...props }) => {
   );
 };
 
+// 批注 Span 组件（带点击展开功能）
+const AnnotationSpan = ({ explanation, className, children, ...props }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const spanRef = React.useRef(null);
+  
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (spanRef.current && !spanRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isOpen]);
+  
+  // 移除 data-explanation 属性，避免传递到 DOM
+  const { 'data-explanation': _, ...cleanProps } = props;
+  
+  return (
+    <span 
+      ref={spanRef}
+      onClick={(e) => {
+        e.stopPropagation();
+        setIsOpen(!isOpen);
+      }}
+      className={twMerge("annotation-click", className)}
+      style={{ position: 'relative', display: 'inline' }}
+      {...cleanProps}
+    >
+      {children}
+      {isOpen && (
+        <span className="annotation-tooltip-click">
+          {explanation}
+        </span>
+      )}
+    </span>
+  );
+};
+
 const MarkdownRenderer = ({ content: _content, className }) => {
   // Ensure content is a string
   const content = typeof _content === 'string' 
@@ -468,19 +593,16 @@ const MarkdownRenderer = ({ content: _content, className }) => {
             if (className === 'spoiler') {
               return <Spoiler as="span" className={className} {...props}>{children}</Spoiler>
             }
-            // Handle annotation spans
+            // Handle annotation spans with click trigger
             if (props['data-explanation']) {
-              const explanation = props['data-explanation'];
               return (
-                <span 
-                  {...props} 
-                  className={twMerge("annotation", className)}
+                <AnnotationSpan 
+                  explanation={props['data-explanation']}
+                  className={className}
+                  {...props}
                 >
                   {children}
-                  <span className="annotation-tooltip">
-                    {explanation}
-                  </span>
-                </span>
+                </AnnotationSpan>
               );
             }
             return <span className={className} {...props}>{children}</span>
@@ -647,47 +769,6 @@ const MarkdownRenderer = ({ content: _content, className }) => {
           hr({ node, ...props }) {
             return <hr {...props} className="my-12 border-border/60" />
           },
-          span({ node, className, children, ...props }) {
-            // Handle annotation spans with click trigger
-            if (props['data-explanation']) {
-              const explanation = props['data-explanation'];
-              const [isOpen, setIsOpen] = React.useState(false);
-              const spanRef = React.useRef(null);
-              
-              React.useEffect(() => {
-                const handleClickOutside = (event) => {
-                  if (spanRef.current && !spanRef.current.contains(event.target)) {
-                    setIsOpen(false);
-                  }
-                };
-                
-                if (isOpen) {
-                  document.addEventListener('mousedown', handleClickOutside);
-                  return () => document.removeEventListener('mousedown', handleClickOutside);
-                }
-              }, [isOpen]);
-              
-              return (
-                <span 
-                  ref={spanRef}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsOpen(!isOpen);
-                  }}
-                  className={twMerge("annotation-click", className)}
-                  style={{ position: 'relative' }}
-                >
-                  {children}
-                  {isOpen && (
-                    <span className="annotation-tooltip-click">
-                      {explanation}
-                    </span>
-                  )}
-                </span>
-              );
-            }
-            return <span {...props} className={className}>{children}</span>;
-          }
 
         }}
       >

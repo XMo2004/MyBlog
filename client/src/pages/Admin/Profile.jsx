@@ -108,7 +108,7 @@ const AdminProfile = () => {
                     whileTap={{ scale: 0.98 }}
                     onClick={handleSubmit}
                     disabled={isSaving}
-                    className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
                     <Save size={16} />
                     {isSaving ? '保存中...' : '保存更改'}
@@ -123,7 +123,7 @@ const AdminProfile = () => {
 
             <form onSubmit={handleSubmit} className="space-y-6 max-w-4xl 2xl:max-w-6xl 3xl:max-w-[1600px] mx-auto">
                 {/* Basic Info */}
-                <div className="p-4 md:p-6 bg-card rounded-lg border border-border shadow-sm space-y-4">
+                <div className="p-4 md:p-6 bg-card rounded-lg border border-border space-y-4">
                     <h2 className="text-lg font-semibold flex items-center gap-2 text-foreground"><User size={18} /> 基本资料</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-4 gap-4">
                         <div className="space-y-2">
@@ -166,7 +166,7 @@ const AdminProfile = () => {
                 </div>
 
                 {/* Skills */}
-                <div className="p-4 md:p-6 bg-card rounded-lg border border-border shadow-sm space-y-4">
+                <div className="p-4 md:p-6 bg-card rounded-lg border border-border space-y-4">
                     <div className="flex justify-between items-center">
                         <h2 className="text-lg font-semibold flex items-center gap-2 text-foreground"><Code size={18} /> 技能栈</h2>
                         <button type="button" onClick={() => addItem('skills', { name: '', level: 50 })} className="text-sm text-primary flex items-center gap-1 hover:underline"><Plus size={16} /> 添加技能</button>
@@ -183,7 +183,7 @@ const AdminProfile = () => {
                 </div>
 
                 {/* Experience */}
-                <div className="p-4 md:p-6 bg-card rounded-lg border border-border shadow-sm space-y-4">
+                <div className="p-4 md:p-6 bg-card rounded-lg border border-border space-y-4">
                     <div className="flex justify-between items-center">
                         <h2 className="text-lg font-semibold flex items-center gap-2 text-foreground"><Briefcase size={18} /> 工作经历</h2>
                         <button type="button" onClick={() => addItem('experience', { title: '', company: '', period: '', description: '' })} className="text-sm text-primary flex items-center gap-1 hover:underline"><Plus size={16} /> 添加经历</button>
@@ -210,7 +210,7 @@ const AdminProfile = () => {
                 </div>
 
                 {/* Education */}
-                <div className="p-4 md:p-6 bg-card rounded-lg border border-border shadow-sm space-y-4">
+                <div className="p-4 md:p-6 bg-card rounded-lg border border-border space-y-4">
                     <div className="flex justify-between items-center">
                         <h2 className="text-lg font-semibold flex items-center gap-2 text-foreground"><GraduationCap size={18} /> 教育背景</h2>
                         <button type="button" onClick={() => addItem('education', { degree: '', school: '', period: '' })} className="text-sm text-primary flex items-center gap-1 hover:underline"><Plus size={16} /> 添加教育</button>
@@ -228,7 +228,7 @@ const AdminProfile = () => {
                 </div>
 
                 {/* Interests */}
-                <div className="p-4 md:p-6 bg-card rounded-lg border border-border shadow-sm space-y-4">
+                <div className="p-4 md:p-6 bg-card rounded-lg border border-border space-y-4">
                     <div className="flex justify-between items-center">
                         <h2 className="text-lg font-semibold flex items-center gap-2 text-foreground"><Heart size={18} /> 兴趣爱好</h2>
                         <button type="button" onClick={() => addItem('interests', '')} className="text-sm text-primary flex items-center gap-1 hover:underline"><Plus size={16} /> 添加兴趣</button>

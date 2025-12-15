@@ -1,0 +1,25 @@
+{
+  "exportedAt": "2025-12-14T07:36:14.118Z",
+  "tables": {
+    "User": 3,
+    "Category": 1,
+    "Tag": 4,
+    "Post": 2,
+    "Comment": 1,
+    "CommentLike": 2,
+    "BookmarkCollection": 1,
+    "Bookmark": 0,
+    "SiteSettings": 5,
+    "Profile": 1,
+    "Resource": 2,
+    "Project": 3,
+    "Column": 2,
+    "ColumnNode": 5,
+    "OperationLog": 562,
+    "VisitLog": 1525,
+    "WeightRecord": 3,
+    "DietRecord": 1,
+    "_PostToTag": 4
+  },
+  "totalRecords": 2127
+}

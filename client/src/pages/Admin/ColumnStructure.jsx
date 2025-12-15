@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Folder, FileText, ChevronRight, ChevronDown, Plus, Trash2, Edit, Save, ArrowLeft, GripVertical, X, Check } from 'lucide-react';
+import Select from '../../components/Select';
 import { columnsApi } from '../../lib/api';
 import api from '../../lib/api';
 import Toast from '../../components/Toast';
@@ -238,7 +239,7 @@ export default function ColumnStructure() {
                 onClose={() => setMessage({ type: '', text: '' })} 
             />
 
-            <div className="bg-card border border-border rounded-lg shadow-sm min-h-[500px] p-4 md:p-6">
+            <div className="bg-card border border-border rounded-lg min-h-[500px] p-4 md:p-6">
                 {/* Tree View */}
                 {column.tree.length === 0 ? (
                     <div className="text-center py-20 text-muted-foreground">
@@ -271,7 +272,7 @@ export default function ColumnStructure() {
             {/* Modal */}
             {showModal && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-                    <div className="bg-card rounded-xl border border-border p-6 w-full max-w-md shadow-2xl">
+                    <div className="bg-card rounded-xl border border-border p-6 w-full max-w-md">
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-xl font-bold">
                                 {modalMode === 'create' ? '添加项目' : '编辑项目'}
@@ -325,18 +326,15 @@ export default function ColumnStructure() {
                             {formData.type === 'post' && (
                                 <div>
                                     <label className="block text-sm font-medium text-muted-foreground mb-1">选择文章</label>
-                                    <select
+                                    <Select
                                         value={formData.postId}
-                                        onChange={e => setFormData({ ...formData, postId: e.target.value })}
-                                        className="w-full bg-background border border-border rounded-lg px-4 py-2 focus:outline-none focus:border-primary"
-                                    >
-                                        <option value="">-- 选择一篇文章 --</option>
-                                        {posts.map(post => (
-                                            <option key={post.id} value={post.id}>
-                                                {post.title}
-                                            </option>
-                                        ))}
-                                    </select>
+                                        onChange={(val) => setFormData({ ...formData, postId: val })}
+                                        options={[
+                                            { value: "", label: "-- 选择一篇文章 --" },
+                                            ...posts.map(post => ({ value: post.id, label: post.title }))
+                                        ]}
+                                        className="w-full"
+                                    />
                                 </div>
                             )}
 

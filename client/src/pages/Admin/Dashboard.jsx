@@ -2,11 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, animate } from 'framer-motion';
 import { 
     FileText, MessageSquare, Tag, Link as LinkIcon, Folder, Users, 
-    Activity, AlertCircle, RotateCw, TrendingUp, PieChart as PieChartIcon, Type 
+    Activity, AlertCircle, RotateCw, TrendingUp, PieChart as PieChartIcon, Type,
+    Eye, UserPlus, Calendar, Clock, Award, BookOpen, Bookmark, Layers
 } from 'lucide-react';
 import { 
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    PieChart, Pie, Cell, Legend
+    PieChart, Pie, Cell, Legend, BarChart, Bar, LineChart, Line
 } from 'recharts';
 import { adminApi } from '../../lib/api';
 import Loading from '../../components/Loading';
@@ -54,7 +55,7 @@ const CountUp = ({ from = 0, to, duration = 1.5 }) => {
 const StatCard = ({ title, value, icon: Icon, subValue, color, animate: shouldAnimate }) => (
     <motion.div 
         variants={itemVariants}
-        className="bg-card border border-border p-5 rounded-lg flex flex-col gap-2 hover:border-primary/50 hover:shadow-lg transition-all duration-300 group"
+        className="bg-card border border-border p-5 rounded-lg flex flex-col gap-2 hover:border-primary/50 transition-all duration-300 group"
     >
         <div className="flex items-center justify-between text-muted-foreground">
             <span className="text-sm font-medium">{title}</span>
@@ -76,7 +77,7 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'
 const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
         return (
-            <div className="bg-card border border-border p-3 rounded-md shadow-xl text-sm">
+            <div className="bg-card border border-border p-3 rounded-md text-sm">
                 <p className="font-semibold mb-2">{label}</p>
                 {payload.map((entry, index) => (
                     <div key={index} className="flex items-center gap-2 text-xs" style={{ color: entry.color }}>
@@ -98,6 +99,9 @@ export const Dashboard = () => {
     const [heatmapData, setHeatmapData] = useState([]);
     const [tagDistribution, setTagDistribution] = useState([]);
     const [categoryDistribution, setCategoryDistribution] = useState([]);
+    const [userGrowthData, setUserGrowthData] = useState([]);
+    const [commentTrendData, setCommentTrendData] = useState([]);
+    const [topPosts, setTopPosts] = useState([]);
 
     const fetchStats = async () => {
         setLoading(true);
@@ -116,6 +120,15 @@ export const Dashboard = () => {
             }
             if (res.data.categoryDistribution) {
                 setCategoryDistribution(res.data.categoryDistribution);
+            }
+            if (res.data.userGrowthData) {
+                setUserGrowthData(res.data.userGrowthData);
+            }
+            if (res.data.commentTrendData) {
+                setCommentTrendData(res.data.commentTrendData);
+            }
+            if (res.data.topPosts) {
+                setTopPosts(res.data.topPosts);
             }
         } catch (error) {
             console.error('Failed to fetch stats', error);
@@ -237,6 +250,57 @@ export const Dashboard = () => {
                 </div>
             </div>
 
+            {/* 今日关键指标 */}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                <motion.div variants={itemVariants} className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/20 p-4 rounded-lg">
+                    <div className="flex items-center gap-2 text-blue-500 mb-2">
+                        <Eye size={16} />
+                        <span className="text-xs font-medium">今日浏览</span>
+                    </div>
+                    <p className="text-2xl font-bold">{stats.todayStats?.pv || 0}</p>
+                    <p className="text-xs text-muted-foreground mt-1">UV: {stats.todayStats?.uv || 0}</p>
+                </motion.div>
+                <motion.div variants={itemVariants} className="bg-gradient-to-br from-green-500/10 to-green-600/5 border border-green-500/20 p-4 rounded-lg">
+                    <div className="flex items-center gap-2 text-green-500 mb-2">
+                        <UserPlus size={16} />
+                        <span className="text-xs font-medium">今日新用户</span>
+                    </div>
+                    <p className="text-2xl font-bold">{stats.users?.today || 0}</p>
+                    <p className="text-xs text-muted-foreground mt-1">本周: {stats.users?.thisWeek || 0}</p>
+                </motion.div>
+                <motion.div variants={itemVariants} className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border border-purple-500/20 p-4 rounded-lg">
+                    <div className="flex items-center gap-2 text-purple-500 mb-2">
+                        <MessageSquare size={16} />
+                        <span className="text-xs font-medium">今日评论</span>
+                    </div>
+                    <p className="text-2xl font-bold">{stats.commentsStats?.today || 0}</p>
+                    <p className="text-xs text-muted-foreground mt-1">本周: {stats.commentsStats?.thisWeek || 0}</p>
+                </motion.div>
+                <motion.div variants={itemVariants} className="bg-gradient-to-br from-orange-500/10 to-orange-600/5 border border-orange-500/20 p-4 rounded-lg">
+                    <div className="flex items-center gap-2 text-orange-500 mb-2">
+                        <Calendar size={16} />
+                        <span className="text-xs font-medium">本周浏览</span>
+                    </div>
+                    <p className="text-2xl font-bold">{stats.weekStats?.pv || 0}</p>
+                    <p className="text-xs text-muted-foreground mt-1">UV: {stats.weekStats?.uv || 0}</p>
+                </motion.div>
+                <motion.div variants={itemVariants} className="bg-gradient-to-br from-pink-500/10 to-pink-600/5 border border-pink-500/20 p-4 rounded-lg">
+                    <div className="flex items-center gap-2 text-pink-500 mb-2">
+                        <Users size={16} />
+                        <span className="text-xs font-medium">总用户数</span>
+                    </div>
+                    <p className="text-2xl font-bold">{stats.users?.total || 0}</p>
+                </motion.div>
+                <motion.div variants={itemVariants} className="bg-gradient-to-br from-cyan-500/10 to-cyan-600/5 border border-cyan-500/20 p-4 rounded-lg">
+                    <div className="flex items-center gap-2 text-cyan-500 mb-2">
+                        <Type size={16} />
+                        <span className="text-xs font-medium">平均字数</span>
+                    </div>
+                    <p className="text-2xl font-bold">{stats.avgWordCount?.toLocaleString() || 0}</p>
+                    <p className="text-xs text-muted-foreground mt-1">每篇文章</p>
+                </motion.div>
+            </div>
+
             {/* 统计卡片区域 */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 gap-6">
                 <StatCard
@@ -255,6 +319,14 @@ export const Dashboard = () => {
                     animate={true}
                 />
                 <StatCard
+                    title="总评论"
+                    value={stats.comments}
+                    subValue={`今日 ${stats.commentsStats?.today || 0} 条`}
+                    icon={MessageSquare}
+                    color="text-yellow-500"
+                    animate={true}
+                />
+                <StatCard
                     title="总资源"
                     value={stats.resources + stats.projects}
                     subValue={`${stats.projects} 项目, ${stats.resources} 资源`}
@@ -262,12 +334,27 @@ export const Dashboard = () => {
                     color="text-purple-500"
                     animate={true}
                 />
+                <StatCard
+                    title="内容模块"
+                    value={(stats.contentOverview?.categories || 0) + (stats.contentOverview?.columns || 0)}
+                    subValue={`${stats.contentOverview?.categories || 0} 分类, ${stats.contentOverview?.columns || 0} 专栏`}
+                    icon={Layers}
+                    color="text-indigo-500"
+                    animate={true}
+                />
+                <StatCard
+                    title="书签收藏"
+                    value={stats.contentOverview?.bookmarks || 0}
+                    icon={Bookmark}
+                    color="text-rose-500"
+                    animate={true}
+                />
             </div>
 
             {/* 写作热力图 */}
             <motion.div 
                 variants={itemVariants}
-                className="bg-card border border-border rounded-xl p-6 shadow-sm"
+                className="bg-card border border-border rounded-xl p-6"
             >
                 <div className="flex items-center gap-2 mb-6">
                     <div className="p-2 bg-primary/10 rounded-lg text-primary">
@@ -292,12 +379,75 @@ export const Dashboard = () => {
                 </div>
             </motion.div>
 
+            {/* 用户增长和评论趋势 */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* 用户增长趋势 */}
+                <motion.div 
+                    variants={itemVariants}
+                    className="bg-card border border-border rounded-xl p-6"
+                >
+                    <div className="flex items-center gap-2 mb-6">
+                        <div className="p-2 bg-green-500/10 rounded-lg text-green-500">
+                            <UserPlus size={20} />
+                        </div>
+                        <div>
+                            <h2 className="font-semibold text-lg">用户增长 (最近30天)</h2>
+                            <p className="text-xs text-muted-foreground">新用户注册趋势</p>
+                        </div>
+                    </div>
+                    <div className="h-[200px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={userGrowthData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                                <defs>
+                                    <linearGradient id="colorUserGrowth" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#22c55e" stopOpacity={0.8}/>
+                                        <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
+                                    </linearGradient>
+                                </defs>
+                                <XAxis dataKey="date" stroke="currentColor" className="text-muted-foreground text-xs" tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                                <YAxis stroke="currentColor" className="text-muted-foreground text-xs" tickLine={false} axisLine={false} allowDecimals={false} />
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.3} />
+                                <Tooltip content={<CustomTooltip />} />
+                                <Area type="monotone" dataKey="count" name="新用户" stroke="#22c55e" fillOpacity={1} fill="url(#colorUserGrowth)" />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                </motion.div>
+
+                {/* 评论趋势 */}
+                <motion.div 
+                    variants={itemVariants}
+                    className="bg-card border border-border rounded-xl p-6"
+                >
+                    <div className="flex items-center gap-2 mb-6">
+                        <div className="p-2 bg-purple-500/10 rounded-lg text-purple-500">
+                            <MessageSquare size={20} />
+                        </div>
+                        <div>
+                            <h2 className="font-semibold text-lg">评论趋势 (最近7天)</h2>
+                            <p className="text-xs text-muted-foreground">每日评论数统计</p>
+                        </div>
+                    </div>
+                    <div className="h-[200px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={commentTrendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                                <XAxis dataKey="name" stroke="currentColor" className="text-muted-foreground text-xs" tickLine={false} axisLine={false} />
+                                <YAxis stroke="currentColor" className="text-muted-foreground text-xs" tickLine={false} axisLine={false} allowDecimals={false} />
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.3} />
+                                <Tooltip content={<CustomTooltip />} />
+                                <Bar dataKey="count" name="评论数" fill="#a855f7" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </motion.div>
+            </div>
+
             {/* 图表区域 */}
             <div className="grid grid-cols-1 lg:grid-cols-12 2xl:grid-cols-12 gap-6">
                 {/* 访问趋势图 - 占8列 */}
                 <motion.div 
                     variants={itemVariants}
-                    className="lg:col-span-8 2xl:col-span-8 3xl:col-span-9 bg-card border border-border rounded-xl p-6 shadow-sm"
+                    className="lg:col-span-8 2xl:col-span-8 3xl:col-span-9 bg-card border border-border rounded-xl p-6"
                 >
                     <div className="flex items-center justify-between mb-6">
                         <div className="flex items-center gap-2">
@@ -331,52 +481,96 @@ export const Dashboard = () => {
                     </div>
                 </motion.div>
 
-                {/* 最近活动 - 占4列 */}
+                {/* 热门文章 - 占4列 */}
                 <motion.div 
                     variants={itemVariants}
-                    className="lg:col-span-4 2xl:col-span-4 3xl:col-span-3 bg-card border border-border rounded-xl overflow-hidden shadow-sm flex flex-col"
+                    className="lg:col-span-4 2xl:col-span-4 3xl:col-span-3 bg-card border border-border rounded-xl overflow-hidden flex flex-col"
                 >
                     <div className="p-6 border-b border-border flex items-center gap-2 shrink-0">
-                        <Activity size={20} className="text-primary" />
-                        <h2 className="font-semibold text-lg">最近活动</h2>
+                        <Award size={20} className="text-yellow-500" />
+                        <h2 className="font-semibold text-lg">热门文章 Top 5</h2>
                     </div>
                     <div className="divide-y divide-border overflow-y-auto grow" style={{ maxHeight: '300px' }}>
-                        {stats.recentLogs.map((log, index) => (
+                        {topPosts.map((post, index) => (
                             <motion.div 
-                                key={log.id} 
+                                key={post.id} 
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ delay: index * 0.05 }}
                                 className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors"
                             >
-                                <div className="flex items-center gap-4">
-                                    <div className="w-2 h-2 rounded-full bg-primary/50"></div>
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                                        index === 0 ? 'bg-yellow-500 text-white' :
+                                        index === 1 ? 'bg-gray-400 text-white' :
+                                        index === 2 ? 'bg-amber-600 text-white' :
+                                        'bg-secondary text-muted-foreground'
+                                    }`}>
+                                        {index + 1}
+                                    </div>
                                     <div>
-                                        <div className="text-sm font-medium truncate w-32" title={log.action}>{log.action}</div>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <span className="text-xs font-mono text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">
-                                                {log.model}
+                                        <div className="text-sm font-medium truncate max-w-[150px]" title={post.title}>{post.title}</div>
+                                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                                            <span className="flex items-center gap-1">
+                                                <MessageSquare size={12} /> {post._count?.comments || 0}
                                             </span>
                                         </div>
                                     </div>
                                 </div>
-                                <span className="text-xs text-muted-foreground font-mono whitespace-nowrap">
-                                    {new Date(log.createdAt).toLocaleDateString()}
-                                </span>
                             </motion.div>
                         ))}
-                        {stats.recentLogs.length === 0 && (
-                            <div className="text-muted-foreground text-center py-12 text-sm">暂无活动</div>
+                        {topPosts.length === 0 && (
+                            <div className="text-muted-foreground text-center py-12 text-sm">暂无数据</div>
                         )}
                     </div>
                 </motion.div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* 最近活动 */}
+            <motion.div 
+                variants={itemVariants}
+                className="bg-card border border-border rounded-xl overflow-hidden"
+            >
+                <div className="p-6 border-b border-border flex items-center gap-2">
+                    <Activity size={20} className="text-primary" />
+                    <h2 className="font-semibold text-lg">最近活动</h2>
+                </div>
+                <div className="divide-y divide-border overflow-y-auto" style={{ maxHeight: '300px' }}>
+                    {stats.recentLogs.map((log, index) => (
+                        <motion.div 
+                            key={log.id} 
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: index * 0.05 }}
+                            className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors"
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className="w-2 h-2 rounded-full bg-primary/50"></div>
+                                <div>
+                                    <div className="text-sm font-medium" title={log.action}>{log.action}</div>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-xs font-mono text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">
+                                            {log.model}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            <span className="text-xs text-muted-foreground font-mono whitespace-nowrap">
+                                {new Date(log.createdAt).toLocaleDateString()} {new Date(log.createdAt).toLocaleTimeString()}
+                            </span>
+                        </motion.div>
+                    ))}
+                    {stats.recentLogs.length === 0 && (
+                        <div className="text-muted-foreground text-center py-12 text-sm">暂无活动</div>
+                    )}
+                </div>
+            </motion.div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* 标签分布图 */}
                 <motion.div 
                     variants={itemVariants}
-                    className="bg-card border border-border rounded-xl p-6 shadow-sm"
+                    className="bg-card border border-border rounded-xl p-6"
                 >
                     <div className="flex items-center gap-2 mb-6">
                         <div className="p-2 bg-primary/10 rounded-lg text-primary">
@@ -410,7 +604,7 @@ export const Dashboard = () => {
                 {/* 分类分布图 */}
                 <motion.div 
                     variants={itemVariants}
-                    className="bg-card border border-border rounded-xl p-6 shadow-sm"
+                    className="bg-card border border-border rounded-xl p-6"
                 >
                     <div className="flex items-center gap-2 mb-6">
                         <div className="p-2 bg-primary/10 rounded-lg text-primary">
@@ -432,6 +626,47 @@ export const Dashboard = () => {
                                 >
                                     {getCategoryPieData().map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={COLORS[(index + 2) % COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip content={<CustomTooltip />} />
+                                <Legend verticalAlign="bottom" height={36}/>
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                </motion.div>
+
+                {/* 会员等级分布 */}
+                <motion.div 
+                    variants={itemVariants}
+                    className="bg-card border border-border rounded-xl p-6"
+                >
+                    <div className="flex items-center gap-2 mb-6">
+                        <div className="p-2 bg-yellow-500/10 rounded-lg text-yellow-500">
+                            <Award size={20} />
+                        </div>
+                        <h2 className="font-semibold text-lg">会员等级分布</h2>
+                    </div>
+                    <div className="h-[250px] w-full flex items-center justify-center">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={(stats.membershipDistribution || []).map(m => ({
+                                        name: m.level === 'regular' ? '普通' : m.level === 'plus' ? 'Plus' : m.level === 'pro' ? 'Pro' : m.level,
+                                        value: m.count
+                                    }))}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={50}
+                                    outerRadius={70}
+                                    paddingAngle={5}
+                                    dataKey="value"
+                                >
+                                    {(stats.membershipDistribution || []).map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={
+                                            entry.level === 'pro' ? '#f59e0b' :
+                                            entry.level === 'plus' ? '#8b5cf6' :
+                                            '#6b7280'
+                                        } />
                                     ))}
                                 </Pie>
                                 <Tooltip content={<CustomTooltip />} />

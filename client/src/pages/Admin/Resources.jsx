@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Trash2, Edit2, Link as LinkIcon, Folder, ExternalLink, Search, X } from 'lucide-react';
+import Select from '../../components/Select';
 import { resourcesApi } from '../../lib/api';
 import Toast from '../../components/Toast';
 import Loading from '../../components/Loading';
@@ -140,7 +141,7 @@ const AdminResources = () => {
                         )}
                         <button
                             onClick={() => { handleCancel(); setIsEditing(true); }}
-                            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm whitespace-nowrap"
+                            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors whitespace-nowrap"
                         >
                             <Plus size={16} /> 新建
                         </button>
@@ -154,7 +155,7 @@ const AdminResources = () => {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 10 }}
-                        className="bg-card p-4 md:p-6 rounded-lg border border-border shadow-sm"
+                        className="bg-card p-4 md:p-6 rounded-lg border border-border"
                     >
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-lg font-semibold">{formData.id ? '编辑资源' : '新建资源'}</h2>
@@ -209,17 +210,17 @@ const AdminResources = () => {
                                 <div className="space-y-4">
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium">类型</label>
-                                        <select
-                                            name="type"
+                                        <Select
                                             value={formData.type}
-                                            onChange={handleChange}
-                                            className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                                        >
-                                            <option value="tool">工具 (Tool)</option>
-                                            <option value="learning">学习 (Learning)</option>
-                                            <option value="design">设计 (Design)</option>
-                                            <option value="other">其他 (Other)</option>
-                                        </select>
+                                            onChange={(val) => setFormData(prev => ({ ...prev, type: val }))}
+                                            options={[
+                                                { value: 'tool', label: '工具 (Tool)' },
+                                                { value: 'learning', label: '学习 (Learning)' },
+                                                { value: 'design', label: '设计 (Design)' },
+                                                { value: 'other', label: '其他 (Other)' }
+                                            ]}
+                                            className="w-full"
+                                        />
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium">图标 URL</label>
@@ -268,7 +269,7 @@ const AdminResources = () => {
                                 </button>
                                 <button
                                     type="submit"
-                                    className="px-6 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm"
+                                    className="px-6 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
                                 >
                                     {formData.id ? '更新资源' : '创建资源'}
                                 </button>
@@ -286,13 +287,13 @@ const AdminResources = () => {
                                 <div className="absolute top-4 right-4 flex gap-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity z-10">
                                     <button 
                                         onClick={() => handleEdit(resource)} 
-                                        className="p-1.5 bg-background border border-border hover:bg-secondary rounded-md text-muted-foreground hover:text-foreground transition-colors shadow-sm"
+                                        className="p-1.5 bg-background border border-border hover:bg-secondary rounded-md text-muted-foreground hover:text-foreground transition-colors"
                                     >
                                         <Edit2 size={14} />
                                     </button>
                                     <button 
                                         onClick={() => handleDelete(resource.id)} 
-                                        className="p-1.5 bg-background border border-border hover:bg-destructive/10 rounded-md text-muted-foreground hover:text-destructive transition-colors shadow-sm"
+                                        className="p-1.5 bg-background border border-border hover:bg-destructive/10 rounded-md text-muted-foreground hover:text-destructive transition-colors"
                                     >
                                         <Trash2 size={14} />
                                     </button>
